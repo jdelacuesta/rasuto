@@ -205,15 +205,11 @@ Consider creating a protocol-based service layer that standardizes how your app 
     - Swipe to compare similar items
     - Option to set "purchase by" dates with reminders
     - Priority indicators (must-have, nice-to-have, etc.)
-5. **Social Integration**
-    - Optional public wishlists that can be followed
-    - Inspiration feed showing popular items from other users
-    - Share item to messages with custom note
-6. **AI-Enhanced Organization** (for future implementation or possible paid version)
+5. **AI-Enhanced Organization** (for future implementation or possible paid version)
     - Suggest wishlist groupings based on user behavior
     - Recommend optimal time to purchase based on price history
     - Auto-categorization of new items
-7. **Duplicate Detection**
+6. **Duplicate Detection**
     - Alert users when they try to add the same item to multiple wishlists
     - Offer to consolidate or keep separate with one-tap action
   
