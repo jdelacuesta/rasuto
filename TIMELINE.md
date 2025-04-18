@@ -7,12 +7,12 @@ This timeline outlines the development plan for Rasuto, an iOS app for tracking 
 ## Phase 1: Planning & Setup (April 15 - April 28)
 **Milestone 1.1: Project Setup & Architecture Design** (April 15 - April 21)
 - [x] Create GitHub repository and initial project structure
-- [ ] Set up development environment with Xcode
-- [ ] Configure SwiftData with CloudKit integration
-- [ ] Design database schema for product information
-- [ ] Research and document API/web scraping approaches for target retailers
-- [ ] Create technical specification document for data handling
-- [ ] Set up project management tools (issue tracking, Git workflow)
+- [x] Set up development environment with Xcode
+- [x] Configure SwiftData with CloudKit integration
+- [x] Design database schema for product information
+- [x] Research and document API/web scraping approaches for target retailers
+- [x] Create technical specification document for data handling
+- [x] Set up project management tools (issue tracking, Git workflow)
 
 
 **Milestone 1.2: UI Framework & Base Navigation** (April 22 - April 28)
