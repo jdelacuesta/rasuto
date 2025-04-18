@@ -19,3 +19,5 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure app appearance here
     }
 }
+
+// This is a test comment to verify GitHub integration - April 18, 2025.
