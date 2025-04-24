@@ -16,26 +16,25 @@ This timeline outlines the development plan for Rasuto, an iOS app for tracking 
 
 
 **Milestone 1.2: UI Framework & Base Navigation** (April 22 - April 28)
-- [ ] Implement basic app navigation structure
-- [ ] Create reusable UI components matching Figma designs
-- [ ] Implement splash screen with animation and UserDefaults storage
-- [ ] Set up color schemes and typography system
-- [ ] Implement base tab bar navigation
-- [ ] Create skeleton screens for main app sections
+- [x] Implement basic app navigation structure
+- [x] Create reusable UI components matching Figma designs
+- [x] Implement splash screen with animation and UserDefaults storage
+- [x] Set up color schemes and typography system
+- [x] Implement base tab bar navigation
+- [x] Create skeleton screens for main app sections
 
 
 ## Phase 2: Core Data & Basic Functionality (April 29 - May 12)
 **Milestone 2.1: Data Models & API Integration** (April 29 - May 5)
-- [ ] Implement SwiftData models for products, wishlists, and user preferences
-- [ ] Create service layer for API calls to retailers
-- [ ] Build web scraping utilities for retailers without APIs
-- [ ] Implement data parsing and normalization
-- [ ] Set up error handling and offline capabilities
-- [ ] Create mock data for development
+- [x] Implement SwiftData models for products, wishlists, and user preferences
+- [x] Create service layer for API calls to retailers
+- [x] Implement data parsing and normalization
+- [x] Set up error handling and offline capabilities
+- [x] Create mock data for development
 
 
 **Milestone 2.2: Add Item Functionality** (May 6 - May 12)
-- [ ] Implement "Add Item" screen matching Figma mockup
+- [x] Implement "Add Item" screen matching Figma mockup
 - [ ] Build URL parsing functionality for product links
 - [ ] Create product preview generation
 - [ ] Implement collection/wishlist selection or creation
