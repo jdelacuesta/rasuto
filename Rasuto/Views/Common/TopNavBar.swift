@@ -11,62 +11,67 @@ import SwiftUI
 
 struct TopNavBar: View {
     @Binding var isRotating: Bool
+    @State private var showSearch = false
+    @StateObject private var searchViewModel = SearchViewModel()
     var onAddTapped: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Logo
-            Circle()
-                .fill(Color(.systemGray5))
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Text("R")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(width: 35, height: 35)
-                        .background(Color.black)
-                        .clipShape(Circle())
-                )
-            
-            // Search bar
+        VStack(spacing: 16) {
+            // Top row with logo and add button
             HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                
-                Text("Search")
-                    .foregroundColor(.gray)
+                // Rasuto wordmark
+                Text("Rasuto")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
                 
                 Spacer()
                 
-                Image(systemName: "mic")
-                    .foregroundColor(.gray)
+                // Add button
+                Button(action: {
+                    withAnimation(.linear(duration: 0.3)) {
+                        isRotating = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onAddTapped()
+                        isRotating = false
+                    }
+                }) {
+                    Image(systemName: "plus")
+                        .foregroundColor(.blue)
+                        .padding(6)
+                        .background(Color(.systemGray5))
+                        .clipShape(Circle())
+                        .rotationEffect(.degrees(isRotating ? 90 : 0))
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(.systemGray5))
-            .cornerRadius(20)
+            .padding(.horizontal)
             
-            // Add button
+            // Search bar
             Button(action: {
-                withAnimation(.linear(duration: 0.3)) {
-                    isRotating = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onAddTapped()
-                    isRotating = false
-                }
+                showSearch = true
             }) {
-                Image(systemName: "plus")
-                    .foregroundColor(.blue)
-                    .padding(6)
-                    .background(Color(.systemGray5))
-                    .clipShape(Circle())
-                    .rotationEffect(.degrees(isRotating ? 90 : 0))
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.gray)
+                    
+                    Text("Search")
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "mic")
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray5))
+                .cornerRadius(20)
+                .padding(.horizontal)
             }
-            .padding(.leading, 4)
+            .fullScreenCover(isPresented: $showSearch) {
+                SearchView()
+            }
         }
-        .padding(.horizontal)
     }
 }
 

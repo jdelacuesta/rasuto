@@ -1,5 +1,5 @@
 //
-//  RetailerService.swift
+//  APIServices.swift
 //  Rasuto
 //
 //  Created by JC Dela Cuesta on 4/23/25.

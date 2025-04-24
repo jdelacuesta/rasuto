@@ -43,7 +43,7 @@ struct AddItemView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16))
                             .foregroundColor(.gray)
-                            .padding(10)
+                            .padding(0)
                             .background(Color(UIColor.systemGray6))
                             .clipShape(Circle())
                     }
@@ -56,8 +56,8 @@ struct AddItemView: View {
                         // Centered "Add New Item" header with larger font
                         Text("Add New Item")
                             .font(.system(size: 24, weight: .bold))
-                            .padding(.top, 16)
-                            .padding(.bottom, 24)
+                            .padding(.top, 10)
+                            .padding(.bottom, 14)
                         
                         // Product Link
                         VStack(alignment: .leading, spacing: 8) {
@@ -188,9 +188,7 @@ struct AddItemView: View {
                             }
                         }
                         
-                        // Reduced space between priority and action buttons (reduced to 10)
-                        Spacer().frame(height: 10)
-                        
+
                         // Buttons grouped with minimal spacing
                         VStack(spacing: 10) {
                             // Cancel button
