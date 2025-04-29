@@ -79,26 +79,6 @@ class BestBuyService: RetailerService {
     }
 }
 
-class TargetService: RetailerService {
-    func fetchProductInfo(from url: URL) async throws -> ProductItem {
-        return ProductItem(
-            name: "Walmart Product",
-            productDescription: "", // Add the required parameters
-            price: nil,
-            currency: "USD",
-            url: nil,
-            brand: "",
-            source: RetailerType.walmart.rawValue, // 'retailer' was renamed to 'source'
-            sourceId: "",
-            category: ""
-        )
-    }
-    
-    func checkStock(for product: ProductItem) async throws -> Bool {
-        return true
-    }
-}
-
 class WalmartService: RetailerService {
     func fetchProductInfo(from url: URL) async throws -> ProductItem {
         return ProductItem(
