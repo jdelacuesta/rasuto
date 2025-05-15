@@ -1,5 +1,5 @@
 //
-//  Alerts.swift
+//  NotificationsViewModel.swift
 //  Rasuto
 //
 //  Created by JC Dela Cuesta on 4/29/25.
@@ -7,11 +7,14 @@
 
 import Foundation
 
-enum AlertType: String, Codable {
-    case priceDropped
-    case endingSoon
-    case itemSold
-    case backInStock
+enum NotificationType: String, Codable {
+    case priceDropped = "priceDropped"
+    case endingSoon = "endingSoon"
+    case itemSold = "itemSold"
+    case backInStock = "backInStock"
+    case priceChange = "priceChange"
+    case inventoryChange = "inventoryChange"
+    case auctionEnding = "auctionEnding"
 }
 
 struct Alert: Identifiable, Codable {
@@ -19,7 +22,7 @@ struct Alert: Identifiable, Codable {
     let productId: String
     let productName: String
     let source: String
-    let alertType: AlertType
+    let alertType: NotificationType
     let date: Date
     let message: String
     let thumbnailUrl: String?
@@ -34,7 +37,7 @@ struct Alert: Identifiable, Codable {
         case id, productId, productName, source, alertType, date, message, thumbnailUrl, isRead, auctionEndTime, currentBid
     }
     
-    init(productId: String, productName: String, source: String, alertType: AlertType, date: Date, message: String, thumbnailUrl: String?, isRead: Bool, auctionEndTime: Date?, currentBid: Double?) {
+    init(productId: String, productName: String, source: String, alertType: NotificationType, date: Date, message: String, thumbnailUrl: String?, isRead: Bool, auctionEndTime: Date?, currentBid: Double?) {
         self.id = UUID()
         self.productId = productId
         self.productName = productName
@@ -55,7 +58,7 @@ struct Alert: Identifiable, Codable {
         productId = try container.decode(String.self, forKey: .productId)
         productName = try container.decode(String.self, forKey: .productName)
         source = try container.decode(String.self, forKey: .source)
-        alertType = try container.decode(AlertType.self, forKey: .alertType)
+        alertType = try container.decode(NotificationType.self, forKey: .alertType)
         date = try container.decode(Date.self, forKey: .date)
         message = try container.decode(String.self, forKey: .message)
         thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)

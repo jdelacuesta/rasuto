@@ -11,7 +11,5 @@
 	<key>NSCameraUsageDescription</key>
 	<string>&lt;key&gt;NSCameraUsageDescription&lt;/key&gt;
 &lt;string&gt;This app uses the camera to scan barcodes.&lt;/string&gt;</string>
-	<key>CFBundleIdentifier</key>
-	<string></string>
 </dict>
 </plist>

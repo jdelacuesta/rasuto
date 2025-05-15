@@ -33,7 +33,7 @@ struct AddItemView: View {
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
-                // Top bar with exit button only
+                // Top bar with exit button only - reduced top padding
                 HStack {
                     Spacer()
                     
@@ -43,21 +43,21 @@ struct AddItemView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16))
                             .foregroundColor(.gray)
-                            .padding(10)
+                            .padding(8)
                             .background(Color(UIColor.systemGray6))
                             .clipShape(Circle())
                     }
-                    .padding(.trailing, 24)
-                    .padding(.top, 24)
+                    .padding(.trailing, 16)
+                    .padding(.top, 12) // Reduced from 24
                 }
                 
                 ScrollView {
-                    VStack(alignment: .center, spacing: 24) {
-                        // Centered "Add New Item" header with larger font
+                    VStack(alignment: .center, spacing: 20) { // Reduced spacing from 24
+                        // Centered "Add New Item" header with adjusted padding
                         Text("Add New Item")
                             .font(.system(size: 24, weight: .bold))
-                            .padding(.top, 16)
-                            .padding(.bottom, 24)
+                            .padding(.top, 8) // Reduced from 16
+                            .padding(.bottom, 16) // Reduced from 24
                         
                         // Product Link
                         VStack(alignment: .leading, spacing: 8) {
@@ -160,8 +160,8 @@ struct AddItemView: View {
                         }
                         .padding(.horizontal)
                         
-                        // Priority - Centered and wider buttons
-                        VStack(alignment: .leading, spacing: 12) {
+                        // Priority - Centered and wider buttons with reduced spacing
+                        VStack(alignment: .leading, spacing: 8) { // Reduced from 12
                             Text("Priority")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
@@ -188,8 +188,8 @@ struct AddItemView: View {
                             }
                         }
                         
-                        // Reduced space between priority and action buttons (reduced to 10)
-                        Spacer().frame(height: 10)
+                        // Further reduced space between priority and action buttons
+                        Spacer().frame(height: 4) // Reduced from 10
                         
                         // Buttons grouped with minimal spacing
                         VStack(spacing: 10) {
@@ -222,9 +222,9 @@ struct AddItemView: View {
                                     .cornerRadius(25)
                             }
                         }
-                        .padding(.bottom, 30) // Better padding from bottom edge
+                        .padding(.bottom, 20) // Reduced from 30
                     }
-                    .padding(.top, 8)
+                    .padding(.top, 4) // Reduced from 8
                 }
             }
         }
