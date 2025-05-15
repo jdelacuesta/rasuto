@@ -42,18 +42,23 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure app appearance here
     }
     
-    /// Configure API keys for eBay services
+    // Configure API keys for eBay services
     private func configureAPIKeys() {
-        do {
-            // Set eBay API keys
-            try APIConfig.saveAPIKey("SBX-8a6bc0b4d-f64bb84a", for: APIConfig.Service.ebay)
-            try APIConfig.saveAPIKey("***REMOVED***", for: APIConfig.Service.ebayClientID)
-            try APIConfig.saveAPIKey("***REMOVED***", for: APIConfig.Service.ebayClientSecret)
-            
-            print("Successfully configured eBay API keys")
-        } catch {
-            print("Failed to save API keys: \(error)")
+        
+        // Initialize API keys from SecretKeys file to keychain securely
+        APIConfig.initializeAPIKeys()
+        
+        #if DEBUG
+        // For development testing without real keys, you can use this
+        if ProcessInfo.processInfo.arguments.contains("USE_TEST_KEYS") {
+            do {
+                try APIConfig.setupTestKeys() // This uses your existing test key method
+                print("Using test API keys for development")
+            } catch {
+                print("Failed to set up test API keys: \(error)")
+            }
         }
+        #endif
     }
     
     // MARK: - eBay Webhook Handling

@@ -5,25 +5,6 @@
 //  Created by JC Dela Cuesta on 4/28/25.
 //
 
-//MARK: -
-
-// App ID (Client ID)
-//***REMOVED***
-//User Tokens|Notifications
-//Dev ID
-//bd749366-baeb-489a-9c92-42a60d9b83b3
-//Cert ID (Client Secret)
-//***REMOVED***
-//Rotate (Reset) Cert ID
-
-
-
-//
-//  EbayAPIService.swift
-//  Rasuto
-//
-//  Created by JC Dela Cuesta on 4/28/25.
-//
 
 import Foundation
 

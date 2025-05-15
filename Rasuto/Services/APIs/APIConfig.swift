@@ -15,7 +15,35 @@ struct APIConfig {
     static let maxRetries = 3
     static let userAgent = "Rasuto/1.0"
     
+    //Initialization method
+    static func initializeAPIKeys() {
+        // First check if keys already exist in keychain
+        let needsInitialization = !APIKeyManager.shared.hasAPIKey(for: Service.ebay) ||
+                                 !APIKeyManager.shared.hasAPIKey(for: Service.ebayClientID) ||
+                                 !APIKeyManager.shared.hasAPIKey(for: Service.ebayClientSecret) ||
+                                 !APIKeyManager.shared.hasAPIKey(for: Service.bestBuy) ||
+                                 !APIKeyManager.shared.hasAPIKey(for: Service.walmart)
+        
+        if needsInitialization {
+            do {
+                // Load keys from configuration
+                try saveAPIKey(SecretKeys.ebayApiKey, for: Service.ebay)
+                try saveAPIKey(SecretKeys.ebayClientId, for: Service.ebayClientID)
+                try saveAPIKey(SecretKeys.ebayClientSecret, for: Service.ebayClientSecret)
+                try saveAPIKey(SecretKeys.bestBuyApiKey, for: Service.bestBuy)
+                try saveAPIKey(SecretKeys.walmartApiKey, for: Service.walmart)
+                
+                print("API keys initialized from configuration")
+            } catch {
+                print("Failed to initialize API keys: \(error)")
+            }
+        } else {
+            print("API keys already exist in keychain")
+        }
+    }
+    
     // MARK: - API Service Identifiers
+    
     struct Service {
         static let bestBuy = "com.rasuto.api.bestbuy"
         static let walmart = "com.rasuto.api.walmart"
@@ -27,24 +55,21 @@ struct APIConfig {
     
     // MARK: - Keychain Access
     
-    // Save an API key to the keychain
     static func saveAPIKey(_ key: String, for service: String) throws {
         try APIKeyManager.shared.saveAPIKey(for: service, key: key)
     }
-    
-    // Retrieve an API key from the keychain
+
     static func getAPIKey(for service: String) throws -> String {
         return try APIKeyManager.shared.getAPIKey(for: service)
     }
     
-    // Delete an API key from the keychain
     static func deleteAPIKey(for service: String) throws {
         try APIKeyManager.shared.deleteAPIKey(for: service)
     }
     
     // MARK: - API Services Factory
     
-    // Create a BestBuy API service instance
+    // BestBuy API service instance
     static func createBestBuyService() throws -> BestBuyAPIService {
         do {
             let apiKey = try getAPIKey(for: Service.bestBuy)
@@ -54,7 +79,7 @@ struct APIConfig {
         }
     }
     
-    // Create a Walmart API service instance
+    // Walmart API service instance
     static func createWalmartService() throws -> WalmartAPIService {
         do {
             let apiKey = try getAPIKey(for: Service.walmart)
@@ -64,7 +89,7 @@ struct APIConfig {
         }
     }
     
-    // Create an Ebay API service instance
+    // Ebay API service instance
     static func createEbayService() throws -> EbayAPIService {
         do {
             let apiKey = try getAPIKey(for: Service.ebay)
