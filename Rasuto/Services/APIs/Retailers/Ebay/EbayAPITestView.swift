@@ -334,10 +334,8 @@ struct EbayAPITestView: View {
     }
 }
 
-struct EbayAPITestView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            EbayAPITestView()
-        }
+#Preview {
+    NavigationView {
+        EbayAPITestView()
     }
 }
