@@ -16,14 +16,12 @@ class URLParser {
     static func getRetailerType(from url: URL) throws -> RetailerType {
         let urlString = url.absoluteString.lowercased()
         
-        if urlString.contains("amazon") {
-            return .amazon
-        } else if urlString.contains("bestbuy") {
+        if urlString.contains("bestbuy") {
             return .bestBuy
-        } else if urlString.contains("target") {
-            return .target
         } else if urlString.contains("walmart") {
             return .walmart
+        } else if urlString.contains("ebay") {
+            return .ebay
         } else {
             throw URLParserError.unsupportedRetailer
         }
@@ -35,20 +33,14 @@ class URLParser {
         let urlString = url.absoluteString
         
         switch retailerType {
-        case .amazon:
-            // Example implementation - needs refinement
-            if let range = urlString.range(of: "/dp/([A-Z0-9]{10})", options: .regularExpression) {
-                let substring = urlString[range]
-                return String(substring).replacingOccurrences(of: "/dp/", with: "")
-            }
         case .bestBuy:
             // Implement Best Buy ID extraction
             return nil
-        case .target:
-            // Implement Target ID extraction
-            return nil
         case .walmart:
             // Implement Walmart ID extraction
+            return nil
+        case .ebay:
+            // Implement eBay ID extraction
             return nil
         }
         
