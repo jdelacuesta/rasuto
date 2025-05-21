@@ -71,7 +71,8 @@ class EbayNotificationManager: ObservableObject {
         // If a service is provided, use it; otherwise create one
         self.ebayService = ebayService ?? {
             do {
-                return try APIConfig.createEbayService()
+                let apiConfig = APIConfig()
+                return try apiConfig.createEbayService()
             } catch {
                 print("Failed to create eBay API service: \(error)")
                 fatalError("Cannot initialize EbayNotificationManager without a valid EbayAPIService")

@@ -17,8 +17,10 @@ struct RasutoApp: App {
     // MARK: - Properties
     
     @State private var appDelegateInitialized = false
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @StateObject private var networkMonitorProxy = NetworkMonitorProxy()
+    @StateObject private var ebayNotificationManager = EbayNotificationManager()
+    @StateObject private var bestBuyPriceTracker = createBestBuyPriceTracker()
     @Environment(\.scenePhase) private var scenePhase
     
     // Dark mode support
@@ -30,22 +32,30 @@ struct RasutoApp: App {
         // Setup CloudKit
         setupCloudKit()
         
-        // Setup API credentials in development
+        // Initialize API keys during app launch
+        let apiConfig = APIConfig()
+        apiConfig.initializeAPIKeys()
+        apiConfig.initializeBestBuyAPI()
+        
+        // Setup appearance
+        setupAppearance()
+        
+        // Setup development environment in debug mode
         #if DEBUG
         setupDevelopmentEnvironment()
         #endif
     }
     
     // MARK: - App Scene
-        
+    
     var body: some Scene {
         WindowGroup {
-            NavigationView {
-                EbayAPITestView()
-                    .environmentObject(EbayNotificationManager.shared)
-                    .environmentObject(networkMonitorProxy)
-                    .overlay(
-                        !NetworkMonitor.shared.isConnected ?
+            HomeView()
+                .environmentObject(ebayNotificationManager)
+                .environmentObject(bestBuyPriceTracker)
+                .environmentObject(networkMonitorProxy)
+                .overlay {
+                    if !NetworkMonitor.shared.isConnected {
                         VStack {
                             Spacer()
                             HStack {
@@ -59,20 +69,41 @@ struct RasutoApp: App {
                             .padding()
                             Spacer().frame(height: 50)
                         }
-                        : nil
-                    )
-            }
-            .preferredColorScheme(isDarkMode ? .dark : .light)
-            .onAppear {
-                // Configure app theme on launch
-                configureAppTheme()
-            }
-            .onChange(of: scenePhase) { newPhase in
-                if newPhase == .active {
-                    // Check for credentials and prompt to set them up if needed
-                    checkAPICredentials()
+                    }
                 }
-            }
+                .preferredColorScheme(isDarkMode ? .dark : .light)
+                .onAppear {
+                    // Configure app theme on launch
+                    configureAppTheme()
+                    print("App launched with Home View")
+                }
+                .onChange(of: scenePhase) { newPhase in
+                    if newPhase == .active {
+                        // Check for credentials and prompt to set them up if needed
+                        checkAPICredentials()
+                    }
+                }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func setupAppearance() {
+        // Configure global appearance settings
+        UINavigationBar.appearance().tintColor = .systemBlue
+    }
+    
+    // Helper method to create BestBuyPriceTracker
+    private static func createBestBuyPriceTracker() -> BestBuyPriceTracker {
+        do {
+            let apiConfig = APIConfig()
+            let service = try apiConfig.createBestBuyService()
+            return BestBuyPriceTracker(bestBuyService: service)
+        } catch {
+            print("Failed to create BestBuyPriceTracker: \(error)")
+            // Return a mock tracker for now
+            let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
+            return BestBuyPriceTracker(bestBuyService: mockService)
         }
     }
     
@@ -101,11 +132,12 @@ struct RasutoApp: App {
         }
     }
     
-    // MARK: - eBay API Configuration
+    // MARK: - API Configuration
     
     private func setupDevelopmentEnvironment() {
         // Setup test API keys
-        APIConfig.setupTestKeys()
+        let apiConfig = APIConfig()
+        apiConfig.setupTestKeys()
     }
     
     private func checkAPICredentials() {
@@ -146,14 +178,18 @@ class NetworkMonitorProxy: ObservableObject {
     }
     
     @objc private func networkStatusChanged() {
-        DispatchQueue.main.async {
-            self.isConnected = NetworkMonitor.shared.isConnected
-            self.connectionType = NetworkMonitor.shared.connectionType
-        }
+        updateConnectionStatus()
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+    
+    func updateConnectionStatus() {
+        DispatchQueue.main.async {
+            self.isConnected = NetworkMonitor.shared.isConnected
+            self.connectionType = NetworkMonitor.shared.connectionType
+        }
     }
 }
 

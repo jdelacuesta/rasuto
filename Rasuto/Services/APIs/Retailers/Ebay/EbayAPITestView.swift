@@ -71,6 +71,34 @@ struct EbayAPITestView: View {
         }
     }
     
+    class APIConfig {
+        enum Service {
+            case ebay
+            case ebayClientID
+            case ebayClientSecret
+            // Add other services as needed
+        }
+        
+        static func getAPIKey(for service: Service) throws -> String {
+            let serviceKey: String
+            switch service {
+            case .ebay:
+                serviceKey = "com.rasuto.api.ebay"
+            case .ebayClientID:
+                serviceKey = "com.rasuto.api.ebay.clientid"
+            case .ebayClientSecret:
+                serviceKey = "com.rasuto.api.ebay.clientsecret"
+            }
+            
+            return try APIKeyManager.shared.getAPIKey(for: serviceKey)
+        }
+        
+        static func createEbayService() throws -> EbayAPIService {
+            let apiKey = try getAPIKey(for: .ebay)
+            return EbayAPIService(apiKey: apiKey)
+        }
+    }
+    
     // MARK: - View Components
     
     private var searchBarView: some View {
@@ -258,7 +286,7 @@ struct EbayAPITestView: View {
     
     private func productImageView(product: ProductItemDTO) -> some View {
         ZStack {
-            AsyncImage(url: product.safeImageURL) { phase in
+            AsyncImage(url: product.getImageURL()) { phase in
                 if let image = phase.image {
                     image
                         .resizable()
@@ -635,9 +663,10 @@ struct EbayAPITestView: View {
         print("🔍 Checking API keys...")
         
         do {
-            let clientID = try APIConfig.getAPIKey(for: APIConfig.Service.ebayClientID)
-            let clientSecret = try APIConfig.getAPIKey(for: APIConfig.Service.ebayClientSecret)
-            let apiKey = try APIConfig.getAPIKey(for: APIConfig.Service.ebay)
+            // Use the local APIConfig class's getAPIKey method instead of directly accessing APIKeyManager
+            let clientID = try APIConfig.getAPIKey(for: .ebayClientID)
+            let clientSecret = try APIConfig.getAPIKey(for: .ebayClientSecret)
+            let apiKey = try APIConfig.getAPIKey(for: .ebay)
             
             print("✅ Found keys:")
             print("   ID: \(clientID.prefix(4))...")
@@ -990,7 +1019,7 @@ struct EbayAPITestView: View {
         var body: some View {
             VStack(alignment: .leading) {
                 ZStack {
-                    AsyncImage(url: product.safeThumbnailURL) { phase in
+                    AsyncImage(url: product.getThumbnailURL()) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()
@@ -1218,18 +1247,32 @@ extension EbayNotificationManager {
         return EbayNotificationManager(ebayService: service)
     }
 }
-
+    
 extension ProductItemDTO {
-    var safeImageURL: URL? {
-        return imageURL
+    // Define a method for accessing image URL safely
+    func getImageURL() -> URL? {
+        if let imageURL = imageURL {
+            return imageURL
+        } else if let firstImageUrl = imageUrls?.first, let url = URL(string: firstImageUrl) {
+            return url
+        } else if let thumbnailUrl = thumbnailUrl, let url = URL(string: thumbnailUrl) {
+            return url
+        }
+        return nil
     }
     
-    var safeThumbnailURL: URL? {
-        guard let thumbnailURLString = thumbnailUrl else { return nil }
-        return URL(string: thumbnailURLString)
+    // Define a method for accessing thumbnail URL safely
+    func getThumbnailURL() -> URL? {
+        if let thumbnailUrl = thumbnailUrl, let url = URL(string: thumbnailUrl) {
+            return url
+        } else if let firstImageUrl = imageUrls?.first, let url = URL(string: firstImageUrl) {
+            return url
+        } else if let imageURL = imageURL {
+            return imageURL
+        }
+        return nil
     }
 }
-    
     
     //MARK: - Preview
     

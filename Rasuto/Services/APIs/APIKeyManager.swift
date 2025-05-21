@@ -1,5 +1,5 @@
 //
-//  APIKeys.swift
+//  APIKeyManager.swift
 //  Rasuto
 //
 //  Created by JC Dela Cuesta on 4/14/25.
@@ -21,6 +21,22 @@ class APIKeyManager {
     
     // Private initializer to enforce singleton pattern
     private init() {}
+    
+    /// Sets an API key in the keychain (convenience method)
+    /// - Parameters:
+    ///   - key: The API key to save
+    ///   - service: The service identifier
+    /// - Returns: Boolean indicating success
+    @discardableResult
+    func setAPIKey(_ key: String, for service: String) -> Bool {
+        do {
+            try saveAPIKey(for: service, key: key)
+            return true
+        } catch {
+            print("Error setting API key: \(error)")
+            return false
+        }
+    }
     
     /// Saves an API key to the keychain
     /// - Parameters:
@@ -151,3 +167,4 @@ class APIKeyManager {
         }
     }
 }
+

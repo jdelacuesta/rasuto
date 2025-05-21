@@ -15,6 +15,10 @@ struct HomeView: View {
     @State private var isRotating = false
     @State private var selectedTab: Tab = .home
     @EnvironmentObject private var notificationManager: EbayNotificationManager
+    @EnvironmentObject private var bestBuyPriceTracker: BestBuyPriceTracker
+    
+    // Debug hub state
+    @State private var showDebugHub = false
     
     // Animation states
     @State private var animateDiscover = false
@@ -43,6 +47,26 @@ struct HomeView: View {
         .edgesIgnoringSafeArea(.bottom)
         .fullScreenCover(isPresented: $showAddItemSheet) {
             AddItemView(isPresented: $showAddItemSheet)
+        }
+        .fullScreenCover(isPresented: $showDebugHub) {
+            NavigationView {
+                APIDebugHubView()
+                    .environmentObject(notificationManager)
+                    .environmentObject(bestBuyPriceTracker)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button {
+                                showDebugHub = false
+                            } label: {
+                                HStack {
+                                    Image(systemName: "chevron.left")
+                                    Text("Home")
+                                }
+                                .foregroundColor(.blue)
+                            }
+                        }
+                    }
+            }
         }
     }
 
@@ -90,6 +114,29 @@ struct HomeView: View {
                 
                 // SECTION 5: Recommended Section
                 recommendedSection
+                
+                #if DEBUG
+                // Debug button - larger and more accessible
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 60, height: 60)
+    
+                        Button {
+                            showDebugHub = true
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "hammer.circle.fill")
+                                        .font(.system(size: 28))
+                                Text("Debug")
+                                        .font(.caption2)
+                            }
+                            .foregroundColor(.blue)
+                        }
+                    }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .center)
+                #endif
                 
                 Spacer(minLength: 80) // Bottom padding for tab bar
             }
@@ -361,7 +408,6 @@ struct HomeView: View {
         return categories[index % categories.count]
     }
 }
-
 // MARK: - PriceDropItemView
 
 struct PriceDropItemView: View {

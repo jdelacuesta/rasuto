@@ -12,6 +12,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // Reference to singletons using shared instances
     let ebayNotificationManager = EbayNotificationManager.shared
     let networkMonitor = NetworkMonitor.shared
+    let apiConfig = APIConfig()
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Monitoring network activity
@@ -49,18 +50,39 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure app appearance here
     }
     
+    // Configure API keys for Best Buy services
+    func setupAPIKeys() {
+        do {
+            // Store the RapidAPI key for Best Buy
+            try APIKeyManager.shared.saveAPIKey(
+                for: "bestbuy.rapidapi_key",
+                key: "71098ddf86msh32a198c44c7d555p12c439jsn99de5f11bc40"
+            )
+            
+            // Also store the host
+            try APIKeyManager.shared.saveAPIKey(
+                for: "bestbuy.rapidapi_host",
+                key: "rapidapi.com"
+            )
+            
+            print("✅ API keys successfully stored")
+        } catch {
+            print("❌ Failed to store API keys: \(error)")
+        }
+    }
+    
     // Configure API keys for eBay services
     private func configureAPIKeys() {
         // Initialize API keys from SecretKeys file to keychain securely
-        APIConfig.initializeAPIKeys()
+        apiConfig.initializeAPIKeys()
         
         #if DEBUG
         // For development testing without real keys, you can use this
         if ProcessInfo.processInfo.arguments.contains("USE_TEST_KEYS") {
             do {
-                let ebayClientID = try APIConfig.getAPIKey(for: APIConfig.Service.ebayClientID)
-                let ebayClientSecret = try APIConfig.getAPIKey(for: APIConfig.Service.ebayClientSecret)
-                let ebayAPIKey = try APIConfig.getAPIKey(for: APIConfig.Service.ebay)
+                let ebayClientID = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientID)
+                let ebayClientSecret = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientSecret)
+                let ebayAPIKey = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebay)
                 
                 print("✅ eBay API credentials loaded:")
                 print("   - Client ID: \(ebayClientID.prefix(4))...")
@@ -71,7 +93,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 
                 if ProcessInfo.processInfo.arguments.contains("USE_TEST_KEYS") {
                     do {
-                        try APIConfig.setupTestKeys() // This uses your existing test key method
+                        try apiConfig.setupTestKeys() // This uses your existing test key method
                         print("✅ Using test API keys for development")
                     } catch {
                         print("❌ Failed to set up test API keys: \(error)")

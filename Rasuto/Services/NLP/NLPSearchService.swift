@@ -23,9 +23,10 @@ class NLPSearchService {
     init() {
         // Initialize with available retailer services
         do {
-            let bestBuyService = try APIConfig.createBestBuyService()
-            let walmartService = try APIConfig.createWalmartService()
-            let ebayService = try APIConfig.createEbayService()
+            let apiConfig = APIConfig()
+            let bestBuyService = try apiConfig.createBestBuyService()
+            let walmartService = try apiConfig.createWalmartService()
+            let ebayService = try apiConfig.createEbayService()
             
             self.retailers = [bestBuyService, walmartService, ebayService]
         } catch {

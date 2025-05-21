@@ -19,7 +19,8 @@ class ProductSearchViewModel: ObservableObject {
     init(ebayService: EbayAPIService? = nil) {
         self.ebayService = ebayService ?? {
             do {
-                return try APIConfig.createEbayService()
+                let apiConfig = APIConfig()
+                return try apiConfig.createEbayService()
             } catch {
                 print("Failed to create eBay service: \(error)")
                 return EbayAPIService(apiKey: "mock_key")

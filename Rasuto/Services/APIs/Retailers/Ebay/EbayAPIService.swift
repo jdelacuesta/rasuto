@@ -115,19 +115,47 @@ class EbayAPIService: RetailerAPIService {
     init(apiKey: String, isSandbox: Bool = false) {
         self.apiKey = apiKey
         
-        // Auto-detect sandbox mode from the API key if not explicitly specified
-        self.isSandbox = isSandbox || apiKey.contains("SBX") || apiKey.contains("sandbox")
+        // Auto-detect sandbox mode from the API key or OAuth credentials
+        var detectedSandbox = isSandbox || apiKey.contains("SBX") || apiKey.contains("sandbox")
+        
+        // Also check OAuth credentials for sandbox indicators
+        if !detectedSandbox {
+            do {
+                let clientID = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientID)
+                let clientSecret = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientSecret)
+                detectedSandbox = clientID.contains("SBX") || clientSecret.contains("SBX")
+            } catch {
+                // If can't get OAuth credentials, stick with API key detection
+            }
+        }
+        
+        self.isSandbox = detectedSandbox
         
         if self.isSandbox {
             APILogger.log("Initialized in SANDBOX mode", type: .info)
+        } else {
+            APILogger.log("Initialized in PRODUCTION mode", type: .info)
         }
     }
     
     init(apiKey: String, notificationManager: EbayNotificationManager, isSandbox: Bool = false) {
         self.apiKey = apiKey
         
-        // Auto-detect sandbox mode from the API key if not explicitly specified
-        self.isSandbox = isSandbox || apiKey.contains("SBX") || apiKey.contains("sandbox")
+        // Auto-detect sandbox mode from the API key or OAuth credentials
+        var detectedSandbox = isSandbox || apiKey.contains("SBX") || apiKey.contains("sandbox")
+        
+        // Also check OAuth credentials for sandbox indicators
+        if !detectedSandbox {
+            do {
+                let clientID = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientID)
+                let clientSecret = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientSecret)
+                detectedSandbox = clientID.contains("SBX") || clientSecret.contains("SBX")
+            } catch {
+                // If can't get OAuth credentials, stick with API key detection
+            }
+        }
+        
+        self.isSandbox = detectedSandbox
         
         self.webhookHandler = EbayWebhookHandler(
             notificationService: notificationService,
@@ -136,6 +164,8 @@ class EbayAPIService: RetailerAPIService {
         
         if self.isSandbox {
             APILogger.log("Initialized in SANDBOX mode with notification manager", type: .info)
+        } else {
+            APILogger.log("Initialized in PRODUCTION mode with notification manager", type: .info)
         }
     }
     
@@ -1049,3 +1079,22 @@ class EbayAPIService: RetailerAPIService {
         return report
     }
  }
+
+// MARK: - APITestable Conformance
+
+extension EbayAPIService: APITestable {
+    func testConnection() async -> Bool {
+        // Implement a simple connection test
+        do {
+            // Use a simple endpoint like categories to test the connection
+            // If you already have a testAPIConnection method with a different name,
+            // you can just call that from here
+            let availableCategories = try await getAvailableFeedTypes()
+            // If we get categories without error, connection is working
+            return !availableCategories.isEmpty
+        } catch {
+            print("eBay API Connection test failed: \(error)")
+            return false
+        }
+    }
+}

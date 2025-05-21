@@ -210,13 +210,13 @@ struct BestBuyAPITestView: View {
             }
         } else {
             do {
-                // First try to initialize using API key directly
-                let apiKey = "71098ddf86msh32a198c44c7d555p12c439jsn99de5f11bc40"
+                // Try to get API key from SecretKeys first
+                let secretKey = SecretKeys.bestBuyRapidApiKey
                 
-                // Try to add the key to keychain if it doesn't exist
-                if !APIKeyManager.shared.hasAPIKey(for: "bestbuy.rapidapi_key") {
-                    try APIKeyManager.shared.saveAPIKey(for: "bestbuy.rapidapi_key", key: apiKey)
-                    addDebugMessage("Saved Best Buy API key to keychain")
+                // Try to add the key to keychain if it doesn't exist and SecretKeys has a valid key
+                if !APIKeyManager.shared.hasAPIKey(for: "bestbuy.rapidapi_key") && !secretKey.isEmpty {
+                    try APIKeyManager.shared.saveAPIKey(for: "bestbuy.rapidapi_key", key: secretKey)
+                    addDebugMessage("Saved Best Buy API key from SecretKeys to keychain")
                 }
                 
                 // Now create the service
@@ -534,10 +534,14 @@ struct BestBuyAPITestView: View {
                 try APIKeyManager.shared.saveAPIKey(for: "bestbuy.rapidapi_key", key: key)
                 addDebugMessage("✅ Successfully saved key to keychain")
             } else {
-                // Try direct key
-                let directKey = "71098ddf86msh32a198c44c7d555p12c439jsn99de5f11bc40"
-                try APIKeyManager.shared.saveAPIKey(for: "bestbuy.rapidapi_key", key: directKey)
-                addDebugMessage("✅ Saved direct key to keychain")
+                // Try getting key from SecretKeys
+                let secretKey = SecretKeys.bestBuyRapidApiKey
+                if !secretKey.isEmpty {
+                    try APIKeyManager.shared.saveAPIKey(for: "bestbuy.rapidapi_key", key: secretKey)
+                    addDebugMessage("✅ Saved key from SecretKeys to keychain")
+                } else {
+                    addDebugMessage("❌ No API key available in SecretKeys")
+                }
             }
         } catch {
             addDebugMessage("❌ Failed to check/save API key: \(error)")

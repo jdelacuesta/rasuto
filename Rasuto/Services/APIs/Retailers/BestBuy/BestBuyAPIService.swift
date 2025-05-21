@@ -525,9 +525,8 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
                 return BestBuyAPIService(apiKey: apiKey, demoMode: demoMode)
             }
             
-            // If all above methods fail, try the hardcoded key as a fallback for demos
-            let hardcodedKey = "71098ddf86msh32a198c44c7d555p12c439jsn99de5f11bc40"
-            return BestBuyAPIService(apiKey: hardcodedKey, demoMode: true)
+            // If all above methods fail, enable demo mode with placeholder key
+            return BestBuyAPIService(apiKey: "DEMO_MODE_KEY", demoMode: true)
         }
     }
     
@@ -775,72 +774,6 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
         // Real API implementation - Use the working Product Details endpoint
         print("🔍 Fetching product details for ID: \(id) using hybrid approach")
         return try await getProductDetailsFromAPI(sku: id)
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        
-        // Add headers required by RapidAPI
-        request.addValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
-        request.addValue(rapidAPIHost, forHTTPHeaderField: "X-RapidAPI-Host")
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw APIError.invalidResponse
-            }
-            
-            switch httpResponse.statusCode {
-            case 200...299:
-                let decoder = JSONDecoder()
-                let bestBuyResponse = try decoder.decode(BestBuyProductDetailsResponse.self, from: data)
-                return mapToProductItem(bestBuyResponse.product)
-                
-            case 401, 403:
-                // If unauthorized or forbidden, enable demo mode and return mock data
-                print("⚠️ API authentication failed with code \(httpResponse.statusCode)")
-                print("✅ Falling back to demo mode with mock data")
-                self.isDemoMode = true
-                
-                if let product = mockProducts.first(where: { $0.sourceId == id }) {
-                    return product
-                }
-                
-                // If ID not found in mock data, return the first mock product with modified ID
-                var fallbackProduct = mockProducts.first!
-                fallbackProduct = ProductItemDTO(
-                    sourceId: id,
-                    name: fallbackProduct.name,
-                    productDescription: fallbackProduct.productDescription,
-                    price: fallbackProduct.price,
-                    originalPrice: fallbackProduct.originalPrice,
-                    currency: fallbackProduct.currency,
-                    imageURL: fallbackProduct.imageURL,
-                    imageUrls: fallbackProduct.imageUrls,
-                    thumbnailUrl: fallbackProduct.thumbnailUrl,
-                    brand: fallbackProduct.brand,
-                    source: fallbackProduct.source,
-                    category: fallbackProduct.category,
-                    isInStock: fallbackProduct.isInStock,
-                    rating: fallbackProduct.rating,
-                    reviewCount: fallbackProduct.reviewCount
-                )
-                return fallbackProduct
-                
-            case 429:
-                throw APIError.rateLimitExceeded
-            case 500...599:
-                throw APIError.serverError(httpResponse.statusCode)
-            default:
-                throw APIError.invalidResponse
-            }
-        } catch {
-            if let decodingError = error as? DecodingError {
-                print("BestBuy Decoding Error: \(decodingError)")
-                throw APIError.decodingFailed(decodingError)
-            }
-            throw APIError.requestFailed(error)
-        }
     }
     
     func getRelatedProducts(id: String) async throws -> [ProductItemDTO] {
