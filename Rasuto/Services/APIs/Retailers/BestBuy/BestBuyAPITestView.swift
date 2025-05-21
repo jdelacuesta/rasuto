@@ -671,9 +671,7 @@ struct BestBuyAPITestView: View {
                     addDebugMessage("   💰 Price: $\(price)")
                 }
                 
-                if let brand = product.brand {
-                    addDebugMessage("   🏢 Brand: \(brand)")
-                }
+                addDebugMessage("   🏢 Brand: \(product.brand)")
             } catch {
                 addDebugMessage("❌ SKU \(sku) failed: \(error)")
             }
