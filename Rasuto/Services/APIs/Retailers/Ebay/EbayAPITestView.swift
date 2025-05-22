@@ -9,6 +9,7 @@ import SwiftUI
 
 struct EbayAPITestView: View {
     @EnvironmentObject var notificationManager: EbayNotificationManager
+    @StateObject private var wishlistService = WishlistService()
     @State private var searchQuery = ""
     @State private var products: [ProductItemDTO] = []
     @State private var isLoading = false
@@ -205,7 +206,7 @@ struct EbayAPITestView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
                         ForEach(products) { product in
-                            EbayProductCard(product: product)
+                            EbayProductCard(product: product, wishlistService: wishlistService)
                                 .onTapGesture {
                                     selectProduct(product.sourceId)
                                 }
@@ -1015,6 +1016,7 @@ struct EbayAPITestView: View {
     // Product Card View
     struct EbayProductCard: View {
         let product: ProductItemDTO
+        let wishlistService: WishlistService
         
         var body: some View {
             VStack(alignment: .leading) {
@@ -1036,6 +1038,29 @@ struct EbayAPITestView: View {
                             ProgressView()
                         }
                     }
+                    
+                    // Save to Wishlist Button Overlay
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                Task {
+                                    await wishlistService.saveToWishlist(from: product)
+                                }
+                            }) {
+                                Image(systemName: "heart")
+                                    .font(.title3)
+                                    .foregroundColor(.red)
+                                    .padding(8)
+                                    .background(Color.white.opacity(0.9))
+                                    .clipShape(Circle())
+                                    .shadow(radius: 2)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
                 }
                 .aspectRatio(1, contentMode: .fit)
                 .cornerRadius(12)

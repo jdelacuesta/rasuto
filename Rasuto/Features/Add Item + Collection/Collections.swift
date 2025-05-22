@@ -12,13 +12,13 @@ import SwiftData
 final class Collection {
     var id: UUID
     var name: String
-    var productItem: [ProductItem]?
+    var items: [ProductItem]
     var createdDate: Date
     
     init(name: String) {
         self.id = UUID()
         self.name = name
-        self.productItem = []
+        self.items = []
         self.createdDate = Date()
     }
 }

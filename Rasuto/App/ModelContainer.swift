@@ -22,10 +22,10 @@ class ModelContainerManager {
                 ProductVariant.self
             ])
             
-            // Create a configuration without CloudKit
+            // Create a configuration with persistent storage
             let modelConfiguration = ModelConfiguration(
                 schema: schema,
-                isStoredInMemoryOnly: true  // Use in-memory storage to bypass persistence issues
+                isStoredInMemoryOnly: false  // Enable persistent storage for wishlist functionality
             )
             
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])

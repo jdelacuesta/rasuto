@@ -34,6 +34,7 @@ struct BestBuyAPITestView: View {
     private let searchSuggestions = ["headphones", "phone", "laptop", "tv", "camera", "gaming"]
     
     @EnvironmentObject var priceTracker: BestBuyPriceTracker
+    @StateObject private var wishlistService = WishlistService()
     
     // Service initialization
     @State private var service: BestBuyAPIService?
@@ -237,7 +238,7 @@ struct BestBuyAPITestView: View {
             } else {
                 List(products, id: \.sourceId) { product in
                     NavigationLink(destination: ProductDetailView(product: product)) {
-                        ProductRow(product: product)
+                        ProductRow(product: product, wishlistService: wishlistService)
                     }
                 }
                 .listStyle(PlainListStyle())
@@ -840,6 +841,7 @@ struct BestBuyAPITestView: View {
 
 struct ProductRow: View {
     let product: ProductItemDTO
+    let wishlistService: WishlistService
     
     var body: some View {
         HStack {
@@ -927,6 +929,25 @@ struct ProductRow: View {
                         }
                     }
                 }
+            }
+            
+            // Save to Wishlist Button
+            VStack {
+                Button(action: {
+                    Task {
+                        await wishlistService.saveToWishlist(from: product)
+                    }
+                }) {
+                    Image(systemName: "heart")
+                        .font(.title3)
+                        .foregroundColor(.red)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
             }
             
             Spacer()

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct WishlistDashboardView: View {
     @State private var searchText = ""
@@ -16,6 +17,7 @@ struct WishlistDashboardView: View {
     @State private var selectedCollection = "All Items"
     @State private var showingNewCollectionSheet = false
     @State private var isRotating = false
+    @StateObject private var wishlistService = WishlistService()
     
     // For animations
     @State private var animateSaved = false
@@ -41,7 +43,34 @@ struct WishlistDashboardView: View {
                     
                     ScrollView {
                         VStack(spacing: 24) {
-                            // SECTION 1: Wishlists
+                            // SECTION 1: Saved - Primary user action, moved to top
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    Text("Saved")
+                                        .font(.title)
+                                        .fontWeight(.bold)
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: { }) {
+                                        Text("See All")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                .padding(.horizontal)
+                                
+                                // Items Grid - Now using real saved items
+                                SavedItemsGridView(
+                                    savedItems: wishlistService.savedItems,
+                                    wishlistService: wishlistService,
+                                    animateSaved: animateSaved
+                                )
+                                .padding(.horizontal)
+                            }
+                            
+                            // SECTION 2: Wishlists - Organization layer
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
                                     Text("Wishlists")
@@ -74,42 +103,8 @@ struct WishlistDashboardView: View {
                                 }
                             }
                             
-                            // SECTION 2: Saved (Formerly All Items)
-                            VStack(alignment: .leading, spacing: 16) {
-                                HStack {
-                                    Text("Saved")
-                                        .font(.title)
-                                        .fontWeight(.bold)
-                                    
-                                    Spacer()
-                                    
-                                    Button(action: { }) {
-                                        Text("See All")
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.blue)
-                                    }
-                                }
-                                .padding(.horizontal)
-                                
-                                // Items Grid
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                                    ForEach(0..<6, id: \.self) { index in
-                                        SavedItemCard(
-                                            imageName: getItemImageName(index),
-                                            title: getItemName(index),
-                                            category: getItemCategory(index)
-                                        )
-                                        .opacity(animateSaved ? 1 : 0)
-                                        .offset(y: animateSaved ? 0 : 20)
-                                        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(Double(index) * 0.1), value: animateSaved)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
                             
-                            
-                            // SECTION 3: Collections
+                            // SECTION 3: Collections - Advanced organization
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Collections")
                                     .font(.title)
@@ -388,6 +383,196 @@ struct NewCollectionView: View {
                 .disabled(collectionName.isEmpty)
             )
         }
+    }
+}
+
+// Real Saved Item Card using actual ProductItem data
+struct RealSavedItemCard: View {
+    let product: ProductItem
+    let wishlistService: WishlistService
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Product image
+            AsyncImage(url: product.imageURL) { phase in
+                switch phase {
+                case .empty:
+                    ZStack {
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .aspectRatio(1, contentMode: .fit)
+                        
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(1, contentMode: .fit)
+                        .clipped()
+                case .failure:
+                    ZStack {
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .aspectRatio(1, contentMode: .fit)
+                        
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                            .font(.title2)
+                    }
+                @unknown default:
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .cornerRadius(12)
+            .overlay(
+                HStack {
+                    Spacer()
+                    VStack {
+                        Button(action: {
+                            Task {
+                                await wishlistService.removeFromWishlist(productId: product.id)
+                            }
+                        }) {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                                .padding(6)
+                                .background(Color.white.opacity(0.9))
+                                .clipShape(Circle())
+                                .shadow(radius: 2)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
+                    }
+                }
+                .padding(8)
+            )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(product.name)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .foregroundColor(.black)
+                
+                if !product.brand.isEmpty {
+                    Text(product.brand)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                
+                if let price = product.price {
+                    Text("$\(String(format: "%.2f", price))")
+                        .font(.callout)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                } else {
+                    Text("Price unavailable")
+                        .font(.callout)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+}
+
+// Separate view component to handle complex grid logic
+struct SavedItemsGridView: View {
+    let savedItems: [ProductItem]
+    let wishlistService: WishlistService
+    let animateSaved: Bool
+    
+    var body: some View {
+        Group {
+            if savedItems.isEmpty {
+                WishlistEmptyStateView(animateSaved: animateSaved)
+            } else {
+                SavedItemsGrid(savedItems: savedItems, wishlistService: wishlistService, animateSaved: animateSaved)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: savedItems.isEmpty)
+    }
+}
+
+// Empty state component for wishlist
+struct WishlistEmptyStateView: View {
+    let animateSaved: Bool
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "heart.slash")
+                .font(.system(size: 48))
+                .foregroundColor(.gray.opacity(0.6))
+            
+            Text("No saved items yet")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Text("Save products from Best Buy or eBay searches")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+        .opacity(animateSaved ? 1 : 0)
+        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: animateSaved)
+    }
+}
+
+// Grid component
+struct SavedItemsGrid: View {
+    let savedItems: [ProductItem]
+    let wishlistService: WishlistService
+    let animateSaved: Bool
+    
+    private var limitedItems: [ProductItem] {
+        Array(savedItems.prefix(6))
+    }
+    
+    private var columns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible())]
+    }
+    
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(limitedItems.indices, id: \.self) { index in
+                WishlistSavedItemCard(
+                    product: limitedItems[index],
+                    wishlistService: wishlistService,
+                    index: index,
+                    animateSaved: animateSaved
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.8).combined(with: .opacity),
+                    removal: .scale(scale: 0.8).combined(with: .opacity)
+                ))
+            }
+        }
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: limitedItems.count)
+    }
+}
+
+// Individual card component for wishlist
+struct WishlistSavedItemCard: View {
+    let product: ProductItem
+    let wishlistService: WishlistService
+    let index: Int
+    let animateSaved: Bool
+    
+    private var animation: Animation {
+        .spring(response: 0.6, dampingFraction: 0.7).delay(Double(index) * 0.1)
+    }
+    
+    var body: some View {
+        RealSavedItemCard(product: product, wishlistService: wishlistService)
+            .opacity(animateSaved ? 1 : 0)
+            .offset(y: animateSaved ? 0 : 20)
+            .animation(animation, value: animateSaved)
     }
 }
 

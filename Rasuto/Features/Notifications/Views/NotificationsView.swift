@@ -7,13 +7,6 @@
 
 import SwiftUI
 
-enum AlertType {
-    case priceDropped
-    case endingSoon
-    case itemSold
-    case backInStock
-}
-
 struct NotificationsView: View {
     @EnvironmentObject private var notificationManager: EbayNotificationManager
     @State private var isRefreshing = false
@@ -41,7 +34,7 @@ struct NotificationsView: View {
     @ViewBuilder
     private var content: some View {
         if notificationManager.alerts.isEmpty {
-            EmptyStateView()
+            NotificationsEmptyView()
         } else {
             AlertListView(alerts: notificationManager.alerts)
         }
@@ -50,25 +43,6 @@ struct NotificationsView: View {
     // Add the missing refreshTrackedItems function
     private func refreshTrackedItems() async {
         await notificationManager.refreshTrackedItems()
-    }
-}
-
-struct EmptyStateView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "bell.slash")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            Text("No Alerts")
-                .font(Theme.Typography.titleFont)
-            
-            Text("You'll see your alerts and notifications here")
-                .font(Theme.Typography.bodyFont)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.gray)
-        }
-        .padding()
     }
 }
 
@@ -143,7 +117,7 @@ struct AlertRow: View {
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 
                 if let currentBid = alert.currentBid {
-                    if (alert.alertType == .priceDropped || alert.alertType == .priceChange),
+                    if alert.alertType == .priceDropped,
                        let originalPrice = getOriginalPriceFromMessage(alert.message) {
                         HStack(spacing: 6) {
                             Text("$\(String(format: "%.2f", currentBid))")
@@ -275,6 +249,27 @@ extension NotificationType {
         case .backInStock, .inventoryChange:
             return .backInStock
         }
+    }
+}
+
+// Empty state specifically for notifications
+struct NotificationsEmptyView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bell.slash")
+                .font(.system(size: 40))
+                .foregroundColor(.gray)
+            
+            Text("No notifications yet")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text("You'll see alerts here when your tracked items have updates")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 40)
     }
 }
 
