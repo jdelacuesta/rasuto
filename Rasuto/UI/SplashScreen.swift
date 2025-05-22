@@ -29,73 +29,38 @@ struct SplashScreen: View {
                 .ignoresSafeArea()
 
             VStack {
-                // Top spacing - reduced to move content higher
+                // Top spacing - centered positioning
                 Spacer()
-                    .frame(height: 150)
                 
-                // Main content - positioned higher in the view
-                VStack(spacing: 6) {
-                    // Native SwiftUI animation instead of Lottie
-                    if showAnimation {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 200, height: 200)
+                // Main content - clean wordmark animation
+                VStack(spacing: 4) {
+                    // Clean RASUTO wordmark
+                    if showName {
+                        Text("RASUTO")
+                            .font(.system(size: 48, weight: .bold, design: .default))
+                            .foregroundColor(.white)
                             .scaleEffect(scale)
                             .opacity(opacity)
-                            .rotationEffect(.degrees(rotation))
-                            .onAppear {
-                                withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
-                                    scale = 1.0
-                                    opacity = 1.0
-                                }
-                                
-                                withAnimation(.easeInOut(duration: 1.5)) {
-                                    rotation = 360
-                                }
-                                
-                                // Set completion after animation finishes
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    hasCompletedAnimation = true
-                                }
-                            }
-                            .transition(.opacity)
-                    }
-                    
-                    // Rasuto Name - Using the same style as TopNavBar
-                    if showName {
-                        HStack(spacing: 0) {
-                            Circle()
-                                .fill(Color(.systemGray5))
-                                .frame(width: 50, height: 50)
-                                .overlay(
-                                    Text("R")
-                                        .font(.title)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                        .frame(width: 49, height: 49)
-                                        .background(Color.black)
-                                        .clipShape(Circle())
-                                )
-                            
-                            Text("asuto")
-                                .font(.system(size: 36, weight: .bold, design: .default))
-                                .foregroundColor(.white)
-                                .padding(.leading, 4)
-                        }
-                        .transition(.opacity)
+                            .transition(.asymmetric(
+                                insertion: .scale.combined(with: .opacity),
+                                removal: .scale.combined(with: .opacity)
+                            ))
                     }
 
-                    // Tagline - Grey but readable, smaller text
+                    // Tagline - positioned below wordmark with minimal spacing
                     if showTagline {
                         Text("Never miss the last one.")
-                            .font(.system(size: 14, weight: .medium, design: .default))
-                            .foregroundColor(.gray)
-                            .transition(.opacity)
+                            .font(.system(size: 14, weight: .regular, design: .default))
+                            .foregroundColor(.gray.opacity(0.8))
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .bottom))
+                            ))
                     }
                 }
                 
-                // Increased bottom spacer to push content up
-                Spacer(minLength: 300)
+                // Bottom spacer to center content
+                Spacer()
                 
                 // Loading Bar at the bottom
                 ZStack(alignment: .leading) {
@@ -140,33 +105,32 @@ struct SplashScreen: View {
     
     // Function to manage the animation sequence
     private func startAnimationSequence() {
-        // Start with loading animation - using longer delays throughout
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            // Step 1: Show animation first
-            withAnimation(.easeIn(duration: 1.0)) { // Slower animation
-                showAnimation = true
+        // Step 1: Show RASUTO wordmark with Apple-like spring animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.25)) {
+                showName = true
+                scale = 1.0
+                opacity = 1.0
             }
-            
-            // Step 2: Show the logo after animation starts
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.easeInOut(duration: 1.0)) { // Slower animation
-                    showName = true
-                }
-                
-                // Step 3: Show the tagline
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    withAnimation(.easeInOut(duration: 1.0)) { // Slower animation
-                        showTagline = true
-                    }
-                    
-                    // Step 4: Start progress bar
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        withAnimation {
-                            progress = 300 // Adjust width based on your design
-                        }
-                    }
-                }
+        }
+        
+        // Step 2: Show tagline with subtle delay and smooth fade
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            withAnimation(.easeOut(duration: 0.6)) {
+                showTagline = true
             }
+        }
+        
+        // Step 3: Start progress bar with smooth easing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            withAnimation(.easeInOut(duration: 2.2)) {
+                progress = 300
+            }
+        }
+        
+        // Step 4: Set completion for navigation with perfect timing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            hasCompletedAnimation = true
         }
     }
 }

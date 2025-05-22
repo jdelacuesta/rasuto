@@ -27,6 +27,9 @@ struct BestBuyAPITestView: View {
     @State private var isShowingMockData = false
     @State private var showSearchSuggestions = false
     
+    // Add focus state for handling keyboard
+    @FocusState private var isSearchFieldFocused: Bool
+    
     // Predefined search suggestions for demonstration
     private let searchSuggestions = ["headphones", "phone", "laptop", "tv", "camera", "gaming"]
     
@@ -35,134 +38,260 @@ struct BestBuyAPITestView: View {
     // Service initialization
     @State private var service: BestBuyAPIService?
     
+    // Helper to explicitly force the keyboard to appear
+    #if os(iOS)
+    private func forceKeyboardShow() {
+        UIApplication.shared.sendAction(#selector(UIResponder.becomeFirstResponder), to: nil, from: nil, for: nil)
+    }
+    #endif
+    
     var body: some View {
-        NavigationView {
-            VStack {
-                // Enhanced search section
-                VStack(spacing: 12) {
-                    // Search bar
-                    HStack {
-                        TextField("Search for: headphones, phone, laptop...", text: $searchQuery)
-                            .padding(10)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                            .onChange(of: searchQuery) { newValue in
-                                showSearchSuggestions = newValue.isEmpty
-                            }
-                        
-                        Button(action: {
+        VStack(spacing: 0) {
+            // Search bar component
+            searchBarView
+            
+            // Content area
+            contentView
+        }
+        .navigationTitle("Best Buy Products")
+        .toolbar {
+#if DEBUG
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showDebugPanel.toggle()
+                }) {
+                    Image(systemName: "wrench.and.screwdriver")
+                }
+            }
+#endif
+        }
+        .overlay(
+            debugPanelView
+        )
+        .onAppear {
+            initializeService()
+            testAPIConnection()
+            // Load some initial products for demo
+            if searchQuery.isEmpty {
+                Task {
+                    await loadInitialProducts()
+                }
+            }
+            
+            // This helps ensure the keyboard appears when needed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                isSearchFieldFocused = true
+                #if os(iOS)
+                forceKeyboardShow()
+                #endif
+                withAnimation {}
+            }
+        }
+    }
+    
+    // MARK: - View Components
+    
+    private var searchBarView: some View {
+        VStack {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                
+                TextField("Search for: headphones, phone, laptop...", text: $searchQuery)
+                    .onSubmit {
+                        if !searchQuery.isEmpty {
                             searchProducts(query: searchQuery)
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.white)
-                                .padding(10)
-                                .background(Color.blue)
-                                .cornerRadius(8)
                         }
                     }
+                    .submitLabel(.search)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .focused($isSearchFieldFocused)
+                    .padding(.vertical, 8) // Add some padding for better touch target
+                    .keyboardType(.default) // Explicitly set keyboard type
+                    .onTapGesture { // Add this to ensure focus when tapped
+                        isSearchFieldFocused = true
+                    }
+                
+                if !searchQuery.isEmpty {
+                    Button(action: {
+                        searchQuery = ""
+                        isSearchFieldFocused = true // Keep focus after clearing
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                
+                Button(action: {
+                    searchProducts(query: searchQuery)
+                }) {
+                    Text("Search")
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(searchQuery.isEmpty ? Color.gray.opacity(0.3) : Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+                .disabled(searchQuery.isEmpty || isLoading)
+            }
+            .padding(12)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+            .padding(.horizontal)
+            
+            // Search suggestions (only when search field is focused and empty)
+            if showSearchSuggestions {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Try searching for:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     
-                    // Search suggestions (only when search field is focused and empty)
-                    if showSearchSuggestions {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Try searching for:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                                ForEach(searchSuggestions, id: \.self) { suggestion in
-                                    Button(suggestion) {
-                                        searchQuery = suggestion
-                                        showSearchSuggestions = false
-                                        searchProducts(query: suggestion)
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color(.systemGray5))
-                                    .cornerRadius(16)
-                                    .font(.caption)
-                                }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
+                        ForEach(searchSuggestions, id: \.self) { suggestion in
+                            Button(suggestion) {
+                                searchQuery = suggestion
+                                showSearchSuggestions = false
+                                searchProducts(query: suggestion)
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray5))
+                            .cornerRadius(16)
+                            .font(.caption)
                         }
-                        .padding(.horizontal)
-                    }
-                    
-                    // Hybrid approach indicator
-                    if !products.isEmpty {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(.green)
-                                .font(.caption)
-                            Text("Using working Best Buy API endpoints (Hybrid approach)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
                     }
                 }
                 .padding(.horizontal)
-                
-                if isLoading {
-                    // Loading indicator
-                    ProgressView("Loading...")
-                        .padding()
-                } else if let errorMessage = errorMessage {
-                    // Error message
-                    VStack {
-                        Text("Error")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                        Button("Try Again") {
-                            searchProducts(query: searchQuery)
-                        }
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .padding()
+            }
+            
+            // Hybrid approach indicator
+            if !products.isEmpty {
+                HStack {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    Text("Using working Best Buy API endpoints (Hybrid approach)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+            }
+        }
+        .padding(.vertical, 12)
+    }
+    
+    private var contentView: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            
+            if isLoading {
+                loadingView
+            } else if let errorMessage = errorMessage {
+                errorView(message: errorMessage)
+            } else {
+                productListView
+            }
+        }
+    }
+    
+    private var loadingView: some View {
+        VStack {
+            ProgressView("Loading...")
+                .padding()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private func errorView(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 50))
+                .foregroundColor(.red)
+            
+            Text("Error")
+                .font(.headline)
+                .foregroundColor(.red)
+            
+            Text(message)
+                .multilineTextAlignment(.center)
+                .padding()
+            
+            Button("Try Again") {
+                searchProducts(query: searchQuery)
+            }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var productListView: some View {
+        Group {
+            if products.isEmpty {
+                emptyStateView
+            } else {
+                List(products, id: \.sourceId) { product in
+                    NavigationLink(destination: ProductDetailView(product: product)) {
+                        ProductRow(product: product)
                     }
-                } else {
-                    // Product list
-                    List(products, id: \.sourceId) { product in
-                        NavigationLink(destination: ProductDetailView(product: product)) {
-                            ProductRow(product: product)
-                        }
-                    }
-                    .listStyle(PlainListStyle())
+                }
+                .listStyle(PlainListStyle())
+            }
+        }
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundColor(.gray)
+            
+            Text("Search for products")
+                .font(.title2)
+            
+            Text("Enter keywords to find products on Best Buy")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private func searchProducts(query: String) {
+        guard let service = service else {
+            errorMessage = "Service not initialized"
+            return
+        }
+        
+        guard !query.isEmpty else {
+            errorMessage = "Search query cannot be empty"
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                addDebugMessage("🔍 Searching for: \(query)")
+                let results = try await service.searchProducts(query: query)
+                await MainActor.run {
+                    products = results
+                    isLoading = false
+                    addDebugMessage("✅ Found \(results.count) products")
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Error: \(error.localizedDescription)"
+                    isLoading = false
+                    addDebugMessage("❌ Search error: \(error)")
                 }
             }
-            .navigationTitle("Best Buy Products")
-            .alert("API Key Required", isPresented: $showAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Please replace 'YOUR_BEST_BUY_API_KEY' in the BestBuyAPIService class with your actual Best Buy API key.")
-            }
-            .onAppear {
-                initializeService()
-                testAPIConnection()
-                // Load some initial products for demo
-                if searchQuery.isEmpty {
-                    Task {
-                        await loadInitialProducts()
-                    }
-                }
-            }
-            .toolbar {
-                #if DEBUG
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showDebugPanel.toggle()
-                    }) {
-                        Image(systemName: "wrench.and.screwdriver")
-                    }
-                }
-                #endif
-            }
-            .overlay(
-                debugPanelView
-            )
         }
     }
     
@@ -255,39 +384,6 @@ struct BestBuyAPITestView: View {
                 addDebugMessage("❌ Failed to connect to Best Buy API")
                 await MainActor.run {
                     showAlert = true
-                }
-            }
-        }
-    }
-    
-    private func searchProducts(query: String) {
-        guard let service = service else {
-            errorMessage = "Service not initialized"
-            return
-        }
-        
-        guard !query.isEmpty else {
-            errorMessage = "Search query cannot be empty"
-            return
-        }
-        
-        isLoading = true
-        errorMessage = nil
-        
-        Task {
-            do {
-                addDebugMessage("🔍 Searching for: \(query)")
-                let results = try await service.searchProducts(query: query)
-                await MainActor.run {
-                    products = results
-                    isLoading = false
-                    addDebugMessage("✅ Found \(results.count) products")
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = "Error: \(error.localizedDescription)"
-                    isLoading = false
-                    addDebugMessage("❌ Search error: \(error)")
                 }
             }
         }
@@ -747,41 +843,82 @@ struct ProductRow: View {
     
     var body: some View {
         HStack {
-            // Product image
+            // Product image with enhanced loading states
             AsyncImage(url: getImageURL(product)) { phase in
                 switch phase {
                 case .empty:
-                    Rectangle()
-                        .foregroundColor(.gray)
-                        .frame(width: 60, height: 60)
+                    ZStack {
+                        Rectangle()
+                            .foregroundColor(Color(.systemGray5))
+                            .frame(width: 60, height: 60)
+                        
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    }
                 case .success(let image):
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 60, height: 60)
+                        .clipped()
                 case .failure:
-                    Image(systemName: "photo")
-                        .frame(width: 60, height: 60)
+                    ZStack {
+                        Rectangle()
+                            .foregroundColor(Color(.systemGray5))
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                            .font(.title3)
+                    }
                 @unknown default:
-                    EmptyView()
+                    Rectangle()
+                        .foregroundColor(Color(.systemGray5))
                         .frame(width: 60, height: 60)
                 }
             }
             .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(.systemGray4), lineWidth: 0.5)
+            )
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                // Product name
                 Text(product.name)
-                    .font(.headline)
-                    .lineLimit(2)
+                    .font(.system(.subheadline, weight: .medium))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
                 
+                // Brand and SKU info
+                HStack {
+                    if !product.brand.isEmpty {
+                        Text(product.brand)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(4)
+                    }
+                    
+                    Text("SKU: \(product.sourceId)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                }
+                
+                // Price
                 if let price = product.price {
                     Text("$\(String(format: "%.2f", price))")
-                        .font(.subheadline)
+                        .font(.system(.callout, weight: .semibold))
                         .foregroundColor(.blue)
                 }
                 
+                // Rating
                 if let rating = product.rating {
-                    HStack {
+                    HStack(spacing: 4) {
                         StarsView(rating: rating)
                         if let reviewCount = product.reviewCount {
                             Text("(\(reviewCount))")
@@ -797,16 +934,63 @@ struct ProductRow: View {
         .padding(.vertical, 4)
     }
     
-    // Helper function inside the view to avoid extension conflicts
+    // Enhanced helper function with better image URL validation
     private func getImageURL(_ product: ProductItemDTO) -> URL? {
+        // Try imageURL first
         if let imageURL = product.imageURL {
             return imageURL
-        } else if let imageUrls = product.imageUrls, let firstImageUrl = imageUrls.first,
-                  let url = URL(string: firstImageUrl) {
-            return url
-        } else if let thumbnailUrl = product.thumbnailUrl, let url = URL(string: thumbnailUrl) {
+        }
+        
+        // Try imageUrls array with validation
+        if let imageUrls = product.imageUrls {
+            for imageUrlString in imageUrls {
+                if let url = URL(string: imageUrlString), isValidImageURL(imageUrlString) {
+                    return url
+                }
+            }
+        }
+        
+        // Try thumbnailUrl with validation
+        if let thumbnailUrl = product.thumbnailUrl,
+           let url = URL(string: thumbnailUrl),
+           isValidImageURL(thumbnailUrl) {
             return url
         }
+        
+        // Fallback: try to construct URL from product info if we have SKU
+        return getFallbackImageURL(for: product)
+    }
+    
+    // Validate if URL looks like an image URL
+    private func isValidImageURL(_ urlString: String) -> Bool {
+        let imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", "_sd.jpg", "_rd.jpg"]
+        let lowercaseURL = urlString.lowercased()
+        
+        // Check for common image file extensions
+        for ext in imageExtensions {
+            if lowercaseURL.contains(ext) {
+                return true
+            }
+        }
+        
+        // Check for Best Buy image patterns
+        if lowercaseURL.contains("bbystatic.com") && lowercaseURL.contains("/images/") {
+            return true
+        }
+        
+        return false
+    }
+    
+    // Generate fallback image URL based on product SKU
+    private func getFallbackImageURL(for product: ProductItemDTO) -> URL? {
+        // For Best Buy products, try to construct image URL from SKU
+        if product.source == "Best Buy" && !product.sourceId.isEmpty {
+            let baseURL = "https://pisces.bbystatic.com/image2/BestBuy_US/images/products"
+            let skuPrefix = String(product.sourceId.prefix(4))
+            let imageURLString = "\(baseURL)/\(skuPrefix)/\(product.sourceId)_sd.jpg"
+            return URL(string: imageURLString)
+        }
+        
         return nil
     }
 }
@@ -835,26 +1019,57 @@ struct ProductDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Product image
+                // Product image with enhanced loading states
                 AsyncImage(url: getImageURL(product)) { phase in
                     switch phase {
                     case .empty:
-                        Rectangle()
-                            .foregroundColor(.gray)
-                            .aspectRatio(contentMode: .fit)
+                        ZStack {
+                            Rectangle()
+                                .foregroundColor(Color(.systemGray5))
+                                .aspectRatio(1, contentMode: .fit)
+                            
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(1.2)
+                                
+                                Text("Loading image...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     case .success(let image):
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 300)
                     case .failure:
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        ZStack {
+                            Rectangle()
+                                .foregroundColor(Color(.systemGray5))
+                                .aspectRatio(1, contentMode: .fit)
+                                .frame(maxHeight: 300)
+                            
+                            VStack(spacing: 12) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.gray)
+                                
+                                Text("Image not available")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     @unknown default:
-                        EmptyView()
+                        Rectangle()
+                            .foregroundColor(Color(.systemGray5))
+                            .aspectRatio(1, contentMode: .fit)
                     }
                 }
-                .cornerRadius(8)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray4), lineWidth: 0.5)
+                )
                 .padding(.horizontal)
                 
                 // Product info
@@ -951,16 +1166,63 @@ struct ProductDetailView: View {
         }
     }
     
-    // Helper function inside the view to avoid extension conflicts
+    // Enhanced helper function with image URL validation
     private func getImageURL(_ product: ProductItemDTO) -> URL? {
+        // Try imageURL first
         if let imageURL = product.imageURL {
             return imageURL
-        } else if let imageUrls = product.imageUrls, let firstImageUrl = imageUrls.first,
-                  let url = URL(string: firstImageUrl) {
-            return url
-        } else if let thumbnailUrl = product.thumbnailUrl, let url = URL(string: thumbnailUrl) {
+        }
+        
+        // Try imageUrls array with validation
+        if let imageUrls = product.imageUrls {
+            for imageUrlString in imageUrls {
+                if let url = URL(string: imageUrlString), isValidImageURL(imageUrlString) {
+                    return url
+                }
+            }
+        }
+        
+        // Try thumbnailUrl with validation
+        if let thumbnailUrl = product.thumbnailUrl,
+           let url = URL(string: thumbnailUrl),
+           isValidImageURL(thumbnailUrl) {
             return url
         }
+        
+        // Fallback: try to construct URL from product info if we have SKU
+        return getFallbackImageURL(for: product)
+    }
+    
+    // Validate if URL looks like an image URL
+    private func isValidImageURL(_ urlString: String) -> Bool {
+        let imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", "_sd.jpg", "_rd.jpg"]
+        let lowercaseURL = urlString.lowercased()
+        
+        // Check for common image file extensions
+        for ext in imageExtensions {
+            if lowercaseURL.contains(ext) {
+                return true
+            }
+        }
+        
+        // Check for Best Buy image patterns
+        if lowercaseURL.contains("bbystatic.com") && lowercaseURL.contains("/images/") {
+            return true
+        }
+        
+        return false
+    }
+    
+    // Generate fallback image URL based on product SKU
+    private func getFallbackImageURL(for product: ProductItemDTO) -> URL? {
+        // For Best Buy products, try to construct image URL from SKU
+        if product.source == "Best Buy" && !product.sourceId.isEmpty {
+            let baseURL = "https://pisces.bbystatic.com/image2/BestBuy_US/images/products"
+            let skuPrefix = String(product.sourceId.prefix(4))
+            let imageURLString = "\(baseURL)/\(skuPrefix)/\(product.sourceId)_sd.jpg"
+            return URL(string: imageURLString)
+        }
+        
         return nil
     }
     

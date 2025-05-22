@@ -26,6 +26,9 @@ struct RasutoApp: App {
     // Dark mode support
     @AppStorage("isDarkMode") private var isDarkMode = false
     
+    // Splash screen control
+    @State private var showSplashScreen = true
+    
     // MARK: - Initialization
     
     init() {
@@ -50,39 +53,44 @@ struct RasutoApp: App {
     
     var body: some Scene {
         WindowGroup {
-            HomeView()
-                .environmentObject(ebayNotificationManager)
-                .environmentObject(bestBuyPriceTracker)
-                .environmentObject(networkMonitorProxy)
-                .overlay {
-                    if !NetworkMonitor.shared.isConnected {
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Image(systemName: "wifi.slash")
-                                Text("No internet connection")
+            if showSplashScreen {
+                SplashScreenWrapper(showSplashScreen: $showSplashScreen)
+                    .preferredColorScheme(isDarkMode ? .dark : .light)
+            } else {
+                HomeView()
+                    .environmentObject(ebayNotificationManager)
+                    .environmentObject(bestBuyPriceTracker)
+                    .environmentObject(networkMonitorProxy)
+                    .overlay {
+                        if !NetworkMonitor.shared.isConnected {
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    Image(systemName: "wifi.slash")
+                                    Text("No internet connection")
+                                }
+                                .padding()
+                                .background(Color.red.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                                .padding()
+                                Spacer().frame(height: 50)
                             }
-                            .padding()
-                            .background(Color.red.opacity(0.8))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                            .padding()
-                            Spacer().frame(height: 50)
                         }
                     }
-                }
-                .preferredColorScheme(isDarkMode ? .dark : .light)
-                .onAppear {
-                    // Configure app theme on launch
-                    configureAppTheme()
-                    print("App launched with Home View")
-                }
-                .onChange(of: scenePhase) { newPhase in
-                    if newPhase == .active {
-                        // Check for credentials and prompt to set them up if needed
-                        checkAPICredentials()
+                    .preferredColorScheme(isDarkMode ? .dark : .light)
+                    .onAppear {
+                        // Configure app theme on launch
+                        configureAppTheme()
+                        print("App launched with Home View")
                     }
-                }
+                    .onChange(of: scenePhase) { newPhase in
+                        if newPhase == .active {
+                            // Check for credentials and prompt to set them up if needed
+                            checkAPICredentials()
+                        }
+                    }
+            }
         }
     }
     
@@ -196,4 +204,64 @@ class NetworkMonitorProxy: ObservableObject {
 // Add this extension to NetworkMonitor.swift
 extension Notification.Name {
     static let networkConnectionStatusChanged = Notification.Name("networkConnectionStatusChanged")
+}
+
+// MARK: - Splash Screen Wrapper
+
+struct SplashScreenWrapper: View {
+    @Binding var showSplashScreen: Bool
+    @State private var scale = 0.8
+    @State private var opacity = 0.0
+    @State private var showName = false
+    @State private var showTagline = false
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 4) {
+                if showName {
+                    Text("RASUTO")
+                        .font(.system(size: 48, weight: .bold, design: .default))
+                        .foregroundColor(.white)
+                        .scaleEffect(scale)
+                        .opacity(opacity)
+                }
+                
+                if showTagline {
+                    Text("Never miss the last one.")
+                        .font(.system(size: 14, weight: .regular, design: .default))
+                        .foregroundColor(.gray.opacity(0.8))
+                }
+            }
+        }
+        .onAppear {
+            // Show name with spring animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                showName = true
+                withAnimation(.spring(response: 0.8, dampingFraction: 0.6, blendDuration: 0)) {
+                    scale = 1.0
+                    opacity = 1.0
+                }
+            }
+            
+            // Show tagline after name animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                withAnimation(.easeOut(duration: 0.6)) {
+                    showTagline = true
+                }
+            }
+            
+            // Hide splash screen with fade out
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    opacity = 0.0
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    showSplashScreen = false
+                }
+            }
+        }
+    }
 }

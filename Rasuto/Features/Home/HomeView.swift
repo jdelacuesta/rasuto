@@ -116,26 +116,39 @@ struct HomeView: View {
                 recommendedSection
                 
                 #if DEBUG
-                // Debug button - larger and more accessible
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.1))
-                            .frame(width: 60, height: 60)
-    
+                // Debug section with contained background box
+                VStack {
+                    // Gray background container
+                    VStack {
                         Button {
                             showDebugHub = true
                         } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: "hammer.circle.fill")
-                                        .font(.system(size: 28))
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .frame(width: 50, height: 50)
+                                    
+                                    Image(systemName: "hammer.circle.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.blue)
+                                }
+                                
                                 Text("Debug")
-                                        .font(.caption2)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
                             }
-                            .foregroundColor(.blue)
                         }
                     }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
                 #endif
                 
                 Spacer(minLength: 80) // Bottom padding for tab bar
