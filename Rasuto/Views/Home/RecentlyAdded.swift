@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct RecentlyAddedSection: View {
+    @State private var products: [ProductItem] = []
+    @State private var isLoading = false
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -18,45 +21,75 @@ struct RecentlyAddedSection: View {
                 Spacer()
                 
                 Button("See All") {
-                    // Add action
+                    // Navigate to full list
                 }
                 .foregroundColor(.blue)
             }
             .padding(.horizontal)
             
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    // Replace with actual item views instead of recursively calling self
-                    ForEach(0..<3) { index in
-                        RecentItem(id: index)
-                    }
+            if isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .frame(height: 240)
+                    Spacer()
                 }
+            } else if products.isEmpty {
+                EmptyStateView(
+                    icon: "plus.circle",
+                    title: "No Recent Items",
+                    subtitle: "Start tracking products to see them here"
+                )
+                .frame(height: 200)
                 .padding(.horizontal)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(products) { product in
+                            ProductCardView(product: product)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .padding(.horizontal)
+                }
             }
+        }
+        .onAppear {
+            loadProducts()
+        }
+    }
+    
+    private func loadProducts() {
+        // For now, use sample data
+        // Later this will fetch from actual API
+        withAnimation {
+            products = Array(ProductItem.sampleItems.prefix(3))
         }
     }
 }
 
-// Add this helper view
-struct RecentItem: View {
-    var id: Int
+// Empty State View
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let subtitle: String
     
     var body: some View {
-        VStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray5))
-                .frame(width: 160, height: 160)
-                .overlay(
-                    Image(systemName: "photo")
-                        .foregroundColor(.gray)
-                )
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 50))
+                .foregroundColor(.gray)
             
-            Text("Product \(id + 1)")
-                .fontWeight(.semibold)
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
             
-            Text("$199.99")
+            Text(subtitle)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
         }
-        .frame(width: 160)
+        .frame(maxWidth: .infinity)
+        .padding()
     }
 }

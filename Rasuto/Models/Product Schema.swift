@@ -146,3 +146,134 @@ extension ModelConfiguration {
         return schema
     }
 }
+
+// MARK: - Computed Properties
+
+extension ProductItem {
+    var currentPrice: Double {
+        return price ?? 0.0
+    }
+    
+    var store: String {
+        return source
+    }
+    
+    var imageUrl: String {
+        if let thumbnailUrl = thumbnailUrl {
+            return thumbnailUrl
+        }
+        if let firstImage = imageUrls.first {
+            return firstImage
+        }
+        return ""
+    }
+}
+
+// MARK: - Sample Data
+
+extension ProductItem {
+    static var sampleItem: ProductItem {
+        let item = ProductItem(
+            name: "Apple AirPods Pro (2nd Generation)",
+            productDescription: "Active Noise Cancelling, Personalized Spatial Audio",
+            price: 199.99,
+            currency: "USD",
+            url: URL(string: "https://www.bestbuy.com/airpods-pro"),
+            brand: "Apple",
+            source: "BestBuy",
+            sourceId: "6447382",
+            category: "Electronics",
+            isInStock: true
+        )
+        item.originalPrice = 249.99
+        item.rating = 4.8
+        item.reviewCount = 12453
+        item.thumbnailUrl = "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6447/6447382_sd.jpg"
+        item.isFavorite = true
+        item.isTracked = false
+        return item
+    }
+    
+    static var sampleItem2: ProductItem {
+        let item = ProductItem(
+            name: "Sony WH-1000XM5 Wireless Headphones",
+            productDescription: "Industry Leading Noise Canceling with Auto Noise Canceling Optimizer",
+            price: 329.99,
+            currency: "USD",
+            url: URL(string: "https://www.ebay.com/sony-headphones"),
+            brand: "Sony",
+            source: "eBay",
+            sourceId: "394856273",
+            category: "Electronics",
+            isInStock: true
+        )
+        item.originalPrice = 399.99
+        item.rating = 4.6
+        item.reviewCount = 8934
+        item.thumbnailUrl = "https://i.ebayimg.com/images/g/~48AAOSw2gNimNX3/s-l1600.jpg"
+        item.isFavorite = false
+        item.isTracked = true
+        return item
+    }
+    
+    static var sampleItems: [ProductItem] {
+        return [
+            sampleItem,
+            sampleItem2,
+            ProductItem(
+                name: "Nintendo Switch OLED Model",
+                productDescription: "7-inch OLED screen, 64 GB internal storage",
+                price: 299.99,
+                currency: "USD",
+                url: URL(string: "https://www.bestbuy.com/nintendo-switch"),
+                brand: "Nintendo",
+                source: "BestBuy",
+                sourceId: "6470923",
+                category: "Gaming",
+                isInStock: true
+            ),
+            ProductItem(
+                name: "Apple Watch Series 9",
+                productDescription: "GPS, 41mm Midnight Aluminum Case",
+                price: 379.99,
+                currency: "USD",
+                url: URL(string: "https://www.ebay.com/apple-watch"),
+                brand: "Apple", 
+                source: "eBay",
+                sourceId: "295847362",
+                category: "Wearables",
+                isInStock: false
+            ),
+            ProductItem(
+                name: "Samsung 65\" OLED 4K Smart TV",
+                productDescription: "Quantum HDR OLED, Object Tracking Sound+",
+                price: 1799.99,
+                currency: "USD",
+                url: URL(string: "https://www.bestbuy.com/samsung-tv"),
+                brand: "Samsung",
+                source: "BestBuy",
+                sourceId: "6525093",
+                category: "TV & Home Theater",
+                isInStock: true
+            )
+        ].map { item in
+            // Add thumbnails to items that don't have them
+            if item.thumbnailUrl == nil {
+                switch item.category {
+                case "Gaming":
+                    item.thumbnailUrl = "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6470/6470923_sd.jpg"
+                case "Wearables":
+                    item.thumbnailUrl = "https://i.ebayimg.com/images/g/Kz4AAOSwjVVlFu~6/s-l1600.jpg"
+                case "TV & Home Theater":
+                    item.thumbnailUrl = "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6525/6525093_sd.jpg"
+                default:
+                    item.thumbnailUrl = ""
+                }
+            }
+            item.originalPrice = item.price! * 1.2
+            item.rating = Double.random(in: 4.0...5.0)
+            item.reviewCount = Int.random(in: 100...10000)
+            return item
+        }
+    }
+}
