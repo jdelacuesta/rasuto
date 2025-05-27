@@ -9,6 +9,7 @@ import Foundation
 import BackgroundTasks
 import UserNotifications
 import Combine
+import SwiftUI
 
 class BackgroundSyncManager: ObservableObject {
     static let shared = BackgroundSyncManager()
@@ -22,8 +23,8 @@ class BackgroundSyncManager: ObservableObject {
     let notificationPublisher = PassthroughSubject<NotificationItem, Never>()
     
     // Services
-    private let bestBuyTracker = BestBuyPriceTracker()
-    private let ebayManager = EbayNotificationManager()
+    private let bestBuyTracker: BestBuyPriceTracker
+    private let ebayManager: EbayNotificationManager
     
     // Sync intervals
     private let priceCheckInterval: TimeInterval = 3600 // 1 hour
@@ -32,6 +33,24 @@ class BackgroundSyncManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     private init() {
+        // Initialize services
+        do {
+            let apiConfig = APIConfig()
+            if let bestBuyService = try? apiConfig.createBestBuyService() {
+                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: bestBuyService)
+            } else {
+                // Fallback to mock service
+                let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
+                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
+            }
+        } catch {
+            // Fallback to mock service
+            let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
+            self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
+        }
+        
+        self.ebayManager = EbayNotificationManager()
+        
         setupBackgroundTasks()
         setupNotificationObservers()
     }
@@ -238,7 +257,7 @@ class BackgroundSyncManager: ObservableObject {
         let notification = NotificationItem(
             title: percentageChange < 0 ? "Price Drop Alert!" : "Price Increase",
             message: content.body,
-            type: .priceDrop,
+            type: NotificationTypeUI.priceDrop,
             source: item.store,
             productId: item.id.uuidString
         )

@@ -209,7 +209,7 @@ struct WishlistDashboardView: View {
 }
 
 // Saved Item Card (for Saved section - formerly All Items)
-struct SavedItemCard: View {
+struct WishlistSavedItemCard: View {
     var imageName: String
     var title: String
     var category: String
@@ -359,32 +359,7 @@ struct NewWishlistView: View {
     }
 }
 
-struct NewCollectionView: View {
-    @Environment(\.presentationMode) var presentationMode
-    @State private var collectionName = ""
-    var onSave: (String) -> Void
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Collection Details")) {
-                    TextField("Collection Name", text: $collectionName)
-                }
-            }
-            .navigationTitle("Add New Collection")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    presentationMode.wrappedValue.dismiss()
-                },
-                trailing: Button("Save") {
-                    onSave(collectionName)
-                    presentationMode.wrappedValue.dismiss()
-                }
-                .disabled(collectionName.isEmpty)
-            )
-        }
-    }
-}
+// NewCollectionView is imported from Views/AddItem/NewCollectionView.swift
 
 // Real Saved Item Card using actual ProductItem data
 struct RealSavedItemCard: View {

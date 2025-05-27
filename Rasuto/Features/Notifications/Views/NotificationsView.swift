@@ -327,57 +327,15 @@ struct NotificationCard: View {
     }
 }
 
-// Notification Models
-class NotificationItem: ObservableObject, Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-    let type: NotificationType
-    let source: String
-    let productId: String?
-    let timestamp: Date
-    @Published var isRead: Bool
-    
-    init(title: String, message: String, type: NotificationType, source: String, productId: String? = nil, isRead: Bool = false) {
-        self.title = title
-        self.message = message
-        self.type = type
-        self.source = source
-        self.productId = productId
-        self.timestamp = Date()
-        self.isRead = isRead
-    }
-}
-
-enum NotificationType {
-    case priceDrop
-    case backInStock
-    case trackingUpdate
-    
-    var icon: String {
-        switch self {
-        case .priceDrop: return "arrow.down.circle.fill"
-        case .backInStock: return "checkmark.circle.fill"
-        case .trackingUpdate: return "bell.badge.fill"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .priceDrop: return .green
-        case .backInStock: return .blue
-        case .trackingUpdate: return .orange
-        }
-    }
-}
+// Notification Models are now in Models/NotificationModels.swift
 
 // Unified Notification Manager
 class UnifiedNotificationManager: ObservableObject {
     @Published var notifications: [NotificationItem] = []
     @Published var isLoading = false
     
-    private var bestBuyTracker = BestBuyPriceTracker()
-    private var ebayManager = EbayNotificationManager()
+    private var bestBuyTracker: BestBuyPriceTracker?
+    private var ebayManager: EbayNotificationManager?
     private var cancellables = Set<AnyCancellable>()
     
     var unreadCount: Int {
@@ -385,12 +343,26 @@ class UnifiedNotificationManager: ObservableObject {
     }
     
     init() {
+        setupServices()
         loadMockNotifications()
+    }
+    
+    private func setupServices() {
+        // Initialize services with proper API configurations
+        do {
+            let apiConfig = APIConfig()
+            if let bestBuyService = try? apiConfig.createBestBuyService() {
+                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: bestBuyService)
+            }
+            self.ebayManager = EbayNotificationManager()
+        } catch {
+            print("Failed to initialize notification services: \(error)")
+        }
     }
     
     func startListening() {
         // Listen to BestBuy price drops
-        bestBuyTracker.objectWillChange
+        bestBuyTracker?.objectWillChange
             .sink { [weak self] _ in
                 self?.checkForPriceDrops()
             }

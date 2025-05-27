@@ -8,9 +8,9 @@
 import SwiftUI
 
 struct ProductCardView: View {
-    @ObservedObject var product: ProductItem
-    @StateObject private var bestBuyTracker = BestBuyPriceTracker()
-    @StateObject private var ebayManager = EbayNotificationManager()
+    let product: ProductItem
+    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
+    @EnvironmentObject private var ebayManager: EbayNotificationManager
     
     @State private var isHeartAnimating = false
     @State private var isTrackAnimating = false
@@ -184,9 +184,30 @@ struct ProductCardView: View {
     private func startTracking() {
         switch product.store.lowercased() {
         case "bestbuy":
-            bestBuyTracker.trackItem(product)
+            let productInfo = BestBuyProductInfo(
+                sku: product.id,
+                name: product.name,
+                regularPrice: product.price ?? 0,
+                salePrice: product.price,
+                onSale: false,
+                image: product.imageUrl,
+                url: product.productUrl ?? "",
+                description: product.description ?? ""
+            )
+            bestBuyTracker.startTracking(sku: product.id, productInfo: productInfo)
         case "ebay":
-            ebayManager.startTracking(for: product)
+            Task {
+                do {
+                    _ = try await ebayManager.trackItem(
+                        id: product.id,
+                        name: product.name,
+                        currentPrice: product.price,
+                        thumbnailUrl: product.imageUrl
+                    )
+                } catch {
+                    print("Failed to track eBay item: \(error)")
+                }
+            }
         default:
             break
         }
@@ -195,9 +216,15 @@ struct ProductCardView: View {
     private func stopTracking() {
         switch product.store.lowercased() {
         case "bestbuy":
-            bestBuyTracker.stopTracking(for: product.id.uuidString)
+            bestBuyTracker.stopTracking(for: product.id)
         case "ebay":
-            ebayManager.stopTracking(for: product.id.uuidString)
+            Task {
+                do {
+                    _ = try await ebayManager.untrackItem(id: product.id)
+                } catch {
+                    print("Failed to untrack eBay item: \(error)")
+                }
+            }
         default:
             break
         }
@@ -219,9 +246,9 @@ struct ProductCardView: View {
 
 // MARK: - Horizontal Card Variant
 struct ProductCardHorizontalView: View {
-    @ObservedObject var product: ProductItem
-    @StateObject private var bestBuyTracker = BestBuyPriceTracker()
-    @StateObject private var ebayManager = EbayNotificationManager()
+    let product: ProductItem
+    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
+    @EnvironmentObject private var ebayManager: EbayNotificationManager
     
     @State private var isHeartAnimating = false
     @State private var isTrackAnimating = false
@@ -338,9 +365,30 @@ struct ProductCardHorizontalView: View {
         if product.isTracked {
             switch product.store.lowercased() {
             case "bestbuy":
-                bestBuyTracker.trackItem(product)
+                let productInfo = BestBuyProductInfo(
+                    sku: product.id,
+                    name: product.name,
+                    regularPrice: product.price ?? 0,
+                    salePrice: product.price,
+                    onSale: false,
+                    image: product.imageUrl,
+                    url: product.productUrl ?? "",
+                    description: product.description ?? ""
+                )
+                bestBuyTracker.startTracking(sku: product.id, productInfo: productInfo)
             case "ebay":
-                ebayManager.startTracking(for: product)
+                Task {
+                    do {
+                        _ = try await ebayManager.trackItem(
+                            id: product.id,
+                            name: product.name,
+                            currentPrice: product.price,
+                            thumbnailUrl: product.imageUrl
+                        )
+                    } catch {
+                        print("Failed to track eBay item: \(error)")
+                    }
+                }
             default:
                 break
             }
