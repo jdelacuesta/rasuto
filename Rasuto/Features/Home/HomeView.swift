@@ -149,7 +149,8 @@ struct HomeView: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
-                #endif
+                
+#endif
                 
                 Spacer(minLength: 80) // Bottom padding for tab bar
             }
@@ -615,15 +616,52 @@ struct CustomTabBar: View {
     }
 }
 
+// MARK: - SavedItemCard
+
+struct SavedItemCard: View {
+    let imageName: String
+    let title: String
+    let category: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Image placeholder
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray5))
+                    .aspectRatio(1.2, contentMode: .fit)
+                
+                Image(systemName: imageName)
+                    .font(.system(size: 32))
+                    .foregroundColor(.gray)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                
+                Text(category)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     let ebayService = EbayAPIService(apiKey: "test_key")
     let notificationManager = EbayNotificationManager(ebayService: ebayService)
+    let bestBuyService = BestBuyAPIService(apiKey: "test_key")
+    let bestBuyPriceTracker = BestBuyPriceTracker(bestBuyService: bestBuyService)
     
     // Add mock data for the preview
     notificationManager.addMockAlerts()
     
     return HomeView()
         .environmentObject(notificationManager)
+        .environmentObject(bestBuyPriceTracker)
 }
