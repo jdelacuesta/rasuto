@@ -37,7 +37,7 @@ struct Alert: Identifiable, Codable {
         case id, productId, productName, source, alertType, date, message, thumbnailUrl, isRead, auctionEndTime, currentBid
     }
     
-    init(productId: String, productName: String, source: String, alertType: NotificationType, date: Date, message: String, thumbnailUrl: String?, isRead: Bool, auctionEndTime: Date?, currentBid: Double?) {
+    init(productId: String, productName: String, source: String, alertType: NotificationTypeAPI, date: Date, message: String, thumbnailUrl: String?, isRead: Bool, auctionEndTime: Date?, currentBid: Double?) {
         self.id = UUID()
         self.productId = productId
         self.productName = productName
@@ -58,7 +58,7 @@ struct Alert: Identifiable, Codable {
         productId = try container.decode(String.self, forKey: .productId)
         productName = try container.decode(String.self, forKey: .productName)
         source = try container.decode(String.self, forKey: .source)
-        alertType = try container.decode(NotificationType.self, forKey: .alertType)
+        alertType = try container.decode(NotificationTypeAPI.self, forKey: .alertType)
         date = try container.decode(Date.self, forKey: .date)
         message = try container.decode(String.self, forKey: .message)
         thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)

@@ -11,6 +11,7 @@ import UserNotifications
 import Combine
 import SwiftUI
 
+@MainActor
 class BackgroundSyncManager: ObservableObject {
     static let shared = BackgroundSyncManager()
     
@@ -23,8 +24,8 @@ class BackgroundSyncManager: ObservableObject {
     let notificationPublisher = PassthroughSubject<NotificationItem, Never>()
     
     // Services
-    private let bestBuyTracker: BestBuyPriceTracker
-    private let ebayManager: EbayNotificationManager
+    private var bestBuyTracker: BestBuyPriceTracker
+    private var ebayManager: EbayNotificationManager
     
     // Sync intervals
     private let priceCheckInterval: TimeInterval = 3600 // 1 hour
@@ -77,7 +78,24 @@ class BackgroundSyncManager: ObservableObject {
     private func setupNotificationObservers() {
         // Observe BestBuy price changes
         bestBuyTracker.$trackedItems
-            .sink { [weak self] items in
+            .sink { [weak self] alerts in
+                // Convert BestBuyPriceAlert to ProductItem for processing
+                let items = alerts.map { alert in
+                    let item = ProductItem(
+                        name: alert.name,
+                        productDescription: "",
+                        price: alert.currentPrice,
+                        currency: "USD",
+                        url: nil,
+                        brand: "",
+                        source: "BestBuy",
+                        sourceId: alert.sku,
+                        category: "",
+                        isInStock: true
+                    )
+                    item.originalPrice = alert.initialPrice
+                    return item
+                }
                 self?.checkForPriceChanges(items: items)
             }
             .store(in: &cancellables)
@@ -156,10 +174,14 @@ class BackgroundSyncManager: ObservableObject {
     
     func performPriceCheck() {
         // Check BestBuy prices
-        bestBuyTracker.checkAllPrices()
+        Task {
+            await bestBuyTracker.refreshPrices()
+        }
         
         // Check eBay prices
-        ebayManager.checkTrackedItems()
+        Task {
+            await ebayManager.refreshTrackedItems()
+        }
     }
     
     func syncNotifications() async {

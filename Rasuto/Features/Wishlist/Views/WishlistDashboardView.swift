@@ -516,11 +516,9 @@ struct SavedItemsGrid: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
             ForEach(limitedItems.indices, id: \.self) { index in
-                WishlistSavedItemCard(
+                RealSavedItemCard(
                     product: limitedItems[index],
-                    wishlistService: wishlistService,
-                    index: index,
-                    animateSaved: animateSaved
+                    wishlistService: wishlistService
                 )
                 .transition(.asymmetric(
                     insertion: .scale(scale: 0.8).combined(with: .opacity),

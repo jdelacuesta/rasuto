@@ -337,7 +337,7 @@ extension ProductItem: SearchResultItem {
 
 extension String: SearchResultItem {
     var displayName: String { self }
-    var id: String { self }
+    public var id: String { self }
 }
 
 // MARK: - Universal Search Manager

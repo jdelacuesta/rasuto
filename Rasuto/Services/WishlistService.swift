@@ -173,7 +173,10 @@ class WishlistService: ObservableObject {
             
             if let product = allProducts.first(where: { $0.id == productId }),
                let collection = allCollections.first(where: { $0.id == collectionId }) {
-                collection.items.append(product)
+                if collection.productItem == nil {
+                    collection.productItem = []
+                }
+                collection.productItem?.append(product)
                 try context.save()
             }
         } catch {
