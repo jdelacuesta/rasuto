@@ -19,6 +19,9 @@ struct TopNavBar: View {
     @State private var selectedProduct: ProductItem?
     @State private var showingProductDetail = false
     @FocusState private var isSearchFocused: Bool
+    @StateObject private var wishlistService = WishlistService()
+    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
+    @EnvironmentObject private var ebayManager: EbayNotificationManager
     
     var body: some View {
         VStack(spacing: 0) {
@@ -146,9 +149,9 @@ struct TopNavBar: View {
         .sheet(isPresented: $showingProductDetail) {
             if let product = selectedProduct {
                 ProductDetailView(product: product)
-                    .environmentObject(WishlistService())
-                    .environmentObject(BestBuyPriceTracker(bestBuyService: BestBuyAPIService(apiKey: "MOCK_API_KEY")))
-                    .environmentObject(EbayNotificationManager())
+                    .environmentObject(wishlistService)
+                    .environmentObject(bestBuyTracker)
+                    .environmentObject(ebayManager)
             }
         }
     }

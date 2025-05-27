@@ -303,8 +303,6 @@ struct ProductDetailView: View {
             } else {
                 await wishlistService.removeFromWishlist(product.id)
             }
-            // Update the product's state in the wishlist service
-            product.isFavorite = isInWishlist
         }
     }
     
@@ -319,9 +317,6 @@ struct ProductDetailView: View {
         } else {
             stopTracking()
         }
-        
-        // Update the product's tracking state
-        product.isTracked = isTracking
     }
     
     private func startTracking() {
