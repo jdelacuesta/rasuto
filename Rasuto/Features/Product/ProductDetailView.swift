@@ -109,8 +109,10 @@ struct ProductDetailView: View {
     // MARK: - Components
     
     private var productImageSection: some View {
-        TabView(selection: $selectedImageIndex) {
-            ForEach(Array(product.imageUrls.enumerated()), id: \.offset) { index, imageUrl in
+        let imageUrls = product.imageUrls.isEmpty ? [product.imageUrl] : product.imageUrls
+        
+        return TabView(selection: $selectedImageIndex) {
+            ForEach(Array(imageUrls.enumerated()), id: \.offset) { index, imageUrl in
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
@@ -291,26 +293,24 @@ struct ProductDetailView: View {
     
     private func toggleWishlist() {
         withAnimation(.spring(response: 0.3)) {
-            product.isFavorite.toggle()
-            isInWishlist = product.isFavorite
+            isInWishlist.toggle()
         }
         
         // Save to wishlist service
-        if isInWishlist {
-            Task {
+        Task {
+            if isInWishlist {
                 await wishlistService.addToWishlist(product)
-            }
-        } else {
-            Task {
+            } else {
                 await wishlistService.removeFromWishlist(product.id)
             }
+            // Update the product's state in the wishlist service
+            product.isFavorite = isInWishlist
         }
     }
     
     private func toggleTracking() {
         withAnimation(.spring(response: 0.3)) {
-            product.isTracked.toggle()
-            isTracking = product.isTracked
+            isTracking.toggle()
         }
         
         // Start/stop tracking
@@ -319,6 +319,9 @@ struct ProductDetailView: View {
         } else {
             stopTracking()
         }
+        
+        // Update the product's tracking state
+        product.isTracked = isTracking
     }
     
     private func startTracking() {

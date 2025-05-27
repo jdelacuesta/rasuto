@@ -520,6 +520,9 @@ struct SavedItemsGrid: View {
                     product: limitedItems[index],
                     wishlistService: wishlistService
                 )
+                .opacity(animateSaved ? 1 : 0)
+                .offset(y: animateSaved ? 0 : 20)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(Double(index) * 0.1), value: animateSaved)
                 .transition(.asymmetric(
                     insertion: .scale(scale: 0.8).combined(with: .opacity),
                     removal: .scale(scale: 0.8).combined(with: .opacity)
