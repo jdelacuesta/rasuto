@@ -31,7 +31,7 @@ enum NotificationTypeUI {
         }
     }
     
-    static func from(_ notificationType: NotificationType) -> NotificationTypeUI {
+    static func from(_ notificationType: NotificationTypeAPI) -> NotificationTypeUI {
         switch notificationType {
         case .priceDropped, .priceChange:
             return .priceDrop

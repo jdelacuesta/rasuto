@@ -35,11 +35,11 @@ struct NotificationsView: View {
         case .all:
             return notificationManager.notifications
         case .priceDrops:
-            return notificationManager.notifications.filter { $0.type == .priceDrop }
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.priceDrop }
         case .backInStock:
-            return notificationManager.notifications.filter { $0.type == .backInStock }
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.backInStock }
         case .tracking:
-            return notificationManager.notifications.filter { $0.type == .trackingUpdate }
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.trackingUpdate }
         }
     }
     
@@ -172,11 +172,11 @@ struct NotificationsView: View {
         case .all:
             return notificationManager.notifications.count
         case .priceDrops:
-            return notificationManager.notifications.filter { $0.type == .priceDrop }.count
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.priceDrop }.count
         case .backInStock:
-            return notificationManager.notifications.filter { $0.type == .backInStock }.count
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.backInStock }.count
         case .tracking:
-            return notificationManager.notifications.filter { $0.type == .trackingUpdate }.count
+            return notificationManager.notifications.filter { $0.type == NotificationTypeUI.trackingUpdate }.count
         }
     }
     
@@ -414,33 +414,33 @@ class UnifiedNotificationManager: ObservableObject {
             NotificationItem(
                 title: "Price Drop Alert!",
                 message: "Apple AirPods Pro dropped from $249.99 to $199.99 - Save $50!",
-                type: .priceDrop,
+                type: NotificationTypeUI.priceDrop,
                 source: "BestBuy"
             ),
             NotificationItem(
                 title: "Back in Stock",
                 message: "Sony WH-1000XM5 Wireless Headphones are now available",
-                type: .backInStock,
+                type: NotificationTypeUI.backInStock,
                 source: "eBay",
                 isRead: true
             ),
             NotificationItem(
                 title: "Tracking Started",
                 message: "You're now tracking Nintendo Switch OLED Model",
-                type: .trackingUpdate,
+                type: NotificationTypeUI.trackingUpdate,
                 source: "BestBuy"
             ),
             NotificationItem(
                 title: "Price Increased",
                 message: "Samsung 65\" OLED TV price went up by $200",
-                type: .trackingUpdate,
+                type: NotificationTypeUI.trackingUpdate,
                 source: "BestBuy",
                 isRead: true
             ),
             NotificationItem(
                 title: "Flash Sale!",
                 message: "Apple Watch Series 9 is 20% off for the next 2 hours",
-                type: .priceDrop,
+                type: NotificationTypeUI.priceDrop,
                 source: "eBay"
             )
         ]

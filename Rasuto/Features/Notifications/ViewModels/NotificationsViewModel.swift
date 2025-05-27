@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum NotificationType: String, Codable {
+enum NotificationTypeAPI: String, Codable {
     case priceDropped = "priceDropped"
     case endingSoon = "endingSoon"
     case itemSold = "itemSold"
@@ -22,7 +22,7 @@ struct Alert: Identifiable, Codable {
     let productId: String
     let productName: String
     let source: String
-    let alertType: NotificationType
+    let alertType: NotificationTypeAPI
     let date: Date
     let message: String
     let thumbnailUrl: String?

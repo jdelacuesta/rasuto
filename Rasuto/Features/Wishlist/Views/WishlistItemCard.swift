@@ -213,13 +213,7 @@ struct WishlistItemCard: View {
 }
 
 // MARK: - Supporting Types
-
-struct PricePoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let price: Double
-    let currency: String
-}
+// PricePoint is defined in Product Schema.swift
 
 // MARK: - Mini Price Chart
 

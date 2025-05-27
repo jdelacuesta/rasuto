@@ -122,7 +122,8 @@ final class ProductVariant {
 
 // MARK: - Price History Point
 
-struct PricePoint: Codable, Hashable {
+struct PricePoint: Codable, Hashable, Identifiable {
+    let id = UUID()
     var date: Date
     var price: Double
     var currency: String

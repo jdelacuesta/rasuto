@@ -259,7 +259,7 @@ class BackgroundSyncManager: ObservableObject {
             message: content.body,
             type: NotificationTypeUI.priceDrop,
             source: item.store,
-            productId: item.id.uuidString
+            productId: item.idString
         )
         
         notificationPublisher.send(notification)
