@@ -16,6 +16,8 @@ struct TopNavBar: View {
     @State private var searchText = ""
     @State private var isSearchActive = false
     @StateObject private var searchManager = UniversalSearchManager()
+    @State private var selectedProduct: ProductItem?
+    @State private var showingProductDetail = false
     @FocusState private var isSearchFocused: Bool
     
     var body: some View {
@@ -131,12 +133,22 @@ struct TopNavBar: View {
                 UniversalSearchResultsView(
                     searchManager: searchManager,
                     searchText: $searchText,
-                    isSearchActive: $isSearchActive
+                    isSearchActive: $isSearchActive,
+                    selectedProduct: $selectedProduct,
+                    showingProductDetail: $showingProductDetail
                 )
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity
                 ))
+            }
+        }
+        .sheet(isPresented: $showingProductDetail) {
+            if let product = selectedProduct {
+                ProductDetailView(product: product)
+                    .environmentObject(WishlistService())
+                    .environmentObject(BestBuyPriceTracker(bestBuyService: BestBuyAPIService(apiKey: "MOCK_API_KEY")))
+                    .environmentObject(EbayNotificationManager())
             }
         }
     }
@@ -148,6 +160,8 @@ struct UniversalSearchResultsView: View {
     @ObservedObject var searchManager: UniversalSearchManager
     @Binding var searchText: String
     @Binding var isSearchActive: Bool
+    @Binding var selectedProduct: ProductItem?
+    @Binding var showingProductDetail: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -185,6 +199,8 @@ struct UniversalSearchResultsView: View {
                                 results: searchManager.productResults
                             ) { product in
                                 // Handle product selection
+                                selectedProduct = product
+                                showingProductDetail = true
                                 withAnimation {
                                     searchText = ""
                                     isSearchActive = false

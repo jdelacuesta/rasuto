@@ -91,7 +91,23 @@ class WishlistService: ObservableObject {
         return product
     }
     
-    func removeFromWishlist(productId: UUID) async {
+    func addToWishlist(_ product: ProductItem) async {
+        guard let context = modelContext else {
+            errorMessage = "Database not available"
+            return
+        }
+        
+        do {
+            product.isFavorite = true
+            product.lastChecked = Date()
+            try context.save()
+            loadSavedItems()
+        } catch {
+            errorMessage = "Failed to add to wishlist: \(error.localizedDescription)"
+        }
+    }
+    
+    func removeFromWishlist(_ productId: UUID) async {
         guard let context = modelContext else {
             errorMessage = "Database not available"
             return
