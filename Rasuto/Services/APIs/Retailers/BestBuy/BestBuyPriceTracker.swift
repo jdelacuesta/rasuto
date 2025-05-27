@@ -10,6 +10,17 @@ import UserNotifications
 
 // MARK: - Price Alert Models
 
+struct BestBuyProductInfo {
+    let sku: String
+    let name: String
+    let regularPrice: Double
+    let salePrice: Double?
+    let onSale: Bool
+    let image: String
+    let url: String
+    let description: String
+}
+
 struct BestBuyPriceAlert: Codable, Identifiable {
     let id: UUID
     let sku: String
@@ -150,6 +161,25 @@ class BestBuyPriceTracker: ObservableObject {
     }
     
     // MARK: - Item Tracking
+    
+    /// Start tracking a product for price changes
+    func startTracking(sku: String, productInfo: BestBuyProductInfo) {
+        Task {
+            await trackItem(
+                sku: sku,
+                name: productInfo.name,
+                currentPrice: productInfo.salePrice ?? productInfo.regularPrice,
+                imageUrl: productInfo.image
+            )
+        }
+    }
+    
+    /// Stop tracking a product
+    func stopTracking(for sku: String) {
+        Task {
+            _ = untrackItem(sku: sku)
+        }
+    }
     
     /// Track an item for price changes
     func trackItem(sku: String, name: String, currentPrice: Double, thresholdPercentage: Double? = nil, imageUrl: String? = nil) async -> Bool {

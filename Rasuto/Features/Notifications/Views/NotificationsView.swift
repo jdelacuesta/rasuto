@@ -353,10 +353,18 @@ class UnifiedNotificationManager: ObservableObject {
             let apiConfig = APIConfig()
             if let bestBuyService = try? apiConfig.createBestBuyService() {
                 self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: bestBuyService)
+            } else {
+                // Fallback to mock service for development
+                let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
+                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
             }
             self.ebayManager = EbayNotificationManager()
         } catch {
             print("Failed to initialize notification services: \(error)")
+            // Fallback to mock service
+            let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
+            self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
+            self.ebayManager = EbayNotificationManager()
         }
     }
     

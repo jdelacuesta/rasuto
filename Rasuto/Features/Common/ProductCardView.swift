@@ -185,23 +185,23 @@ struct ProductCardView: View {
         switch product.store.lowercased() {
         case "bestbuy":
             let productInfo = BestBuyProductInfo(
-                sku: product.id,
+                sku: product.idString,
                 name: product.name,
-                regularPrice: product.price ?? 0,
+                regularPrice: product.originalPrice ?? product.price ?? 0,
                 salePrice: product.price,
                 onSale: false,
                 image: product.imageUrl,
-                url: product.productUrl ?? "",
-                description: product.description ?? ""
+                url: product.url?.absoluteString ?? "",
+                description: product.productDescription
             )
-            bestBuyTracker.startTracking(sku: product.id, productInfo: productInfo)
+            bestBuyTracker.startTracking(sku: product.idString, productInfo: productInfo)
         case "ebay":
             Task {
                 do {
                     _ = try await ebayManager.trackItem(
-                        id: product.id,
+                        id: product.idString,
                         name: product.name,
-                        currentPrice: product.price,
+                        currentPrice: product.price ?? 0,
                         thumbnailUrl: product.imageUrl
                     )
                 } catch {
@@ -216,11 +216,11 @@ struct ProductCardView: View {
     private func stopTracking() {
         switch product.store.lowercased() {
         case "bestbuy":
-            bestBuyTracker.stopTracking(for: product.id)
+            bestBuyTracker.stopTracking(for: product.idString)
         case "ebay":
             Task {
                 do {
-                    _ = try await ebayManager.untrackItem(id: product.id)
+                    _ = try await ebayManager.untrackItem(id: product.idString)
                 } catch {
                     print("Failed to untrack eBay item: \(error)")
                 }
@@ -366,23 +366,23 @@ struct ProductCardHorizontalView: View {
             switch product.store.lowercased() {
             case "bestbuy":
                 let productInfo = BestBuyProductInfo(
-                    sku: product.id,
+                    sku: product.idString,
                     name: product.name,
-                    regularPrice: product.price ?? 0,
+                    regularPrice: product.originalPrice ?? product.price ?? 0,
                     salePrice: product.price,
                     onSale: false,
                     image: product.imageUrl,
-                    url: product.productUrl ?? "",
-                    description: product.description ?? ""
+                    url: product.url?.absoluteString ?? "",
+                    description: product.productDescription
                 )
-                bestBuyTracker.startTracking(sku: product.id, productInfo: productInfo)
+                bestBuyTracker.startTracking(sku: product.idString, productInfo: productInfo)
             case "ebay":
                 Task {
                     do {
                         _ = try await ebayManager.trackItem(
-                            id: product.id,
+                            id: product.idString,
                             name: product.name,
-                            currentPrice: product.price,
+                            currentPrice: product.price ?? 0,
                             thumbnailUrl: product.imageUrl
                         )
                     } catch {

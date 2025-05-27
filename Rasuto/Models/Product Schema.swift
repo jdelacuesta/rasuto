@@ -167,6 +167,19 @@ extension ProductItem {
         }
         return ""
     }
+    
+    var productUrl: String? {
+        return url?.absoluteString
+    }
+    
+    var description: String? {
+        return productDescription
+    }
+    
+    // String ID for API compatibility
+    var idString: String {
+        return self.id.uuidString
+    }
 }
 
 // MARK: - Sample Data

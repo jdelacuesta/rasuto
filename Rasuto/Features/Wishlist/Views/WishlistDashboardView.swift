@@ -532,24 +532,7 @@ struct SavedItemsGrid: View {
     }
 }
 
-// Individual card component for wishlist
-struct WishlistSavedItemCard: View {
-    let product: ProductItem
-    let wishlistService: WishlistService
-    let index: Int
-    let animateSaved: Bool
-    
-    private var animation: Animation {
-        .spring(response: 0.6, dampingFraction: 0.7).delay(Double(index) * 0.1)
-    }
-    
-    var body: some View {
-        RealSavedItemCard(product: product, wishlistService: wishlistService)
-            .opacity(animateSaved ? 1 : 0)
-            .offset(y: animateSaved ? 0 : 20)
-            .animation(animation, value: animateSaved)
-    }
-}
+// Individual card component for wishlist moved to line 212
 
 struct WishlistDashboardView_Previews: PreviewProvider {
     static var previews: some View {
