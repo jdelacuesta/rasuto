@@ -6,282 +6,476 @@
 //
 
 import SwiftUI
+import Combine
 
 struct NotificationsView: View {
-    @EnvironmentObject private var notificationManager: EbayNotificationManager
-    @State private var isRefreshing = false
+    @StateObject private var notificationManager = UnifiedNotificationManager()
+    @State private var selectedFilter: NotificationFilter = .all
+    @State private var showingClearConfirmation = false
+    @State private var refreshing = false
+    
+    enum NotificationFilter: String, CaseIterable {
+        case all = "All"
+        case priceDrops = "Price Drops"
+        case backInStock = "Back in Stock"
+        case tracking = "Tracking Updates"
+        
+        var icon: String {
+            switch self {
+            case .all: return "bell.fill"
+            case .priceDrops: return "arrow.down.circle.fill"
+            case .backInStock: return "checkmark.circle.fill"
+            case .tracking: return "bell.badge.fill"
+            }
+        }
+    }
+    
+    var filteredNotifications: [NotificationItem] {
+        switch selectedFilter {
+        case .all:
+            return notificationManager.notifications
+        case .priceDrops:
+            return notificationManager.notifications.filter { $0.type == .priceDrop }
+        case .backInStock:
+            return notificationManager.notifications.filter { $0.type == .backInStock }
+        case .tracking:
+            return notificationManager.notifications.filter { $0.type == .trackingUpdate }
+        }
+    }
     
     var body: some View {
         NavigationStack {
-            VStack {
-                content
-            }
-            .navigationTitle("Alerts")
-            .overlay(
-                notificationManager.isLoading ?
-                ProgressView("Refreshing...")
-                    .background(Color(.systemBackground).opacity(0.8))
-                    .cornerRadius(10)
-                    .padding()
-                : nil
-            )
-            .refreshable {
-                await refreshTrackedItems()
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var content: some View {
-        if notificationManager.alerts.isEmpty {
-            NotificationsEmptyView()
-        } else {
-            AlertListView(alerts: notificationManager.alerts)
-        }
-    }
-    
-    // Add the missing refreshTrackedItems function
-    private func refreshTrackedItems() async {
-        await notificationManager.refreshTrackedItems()
-    }
-}
-
-struct AlertListView: View {
-    let alerts: [NotificationAlert]
-    @EnvironmentObject private var notificationManager: EbayNotificationManager
-    
-    var body: some View {
-        List {
-            ForEach(alerts) { alert in
-                AlertRow(alert: alert)
-                    .onTapGesture {
-                        notificationManager.markAsRead(alert.id)
-                    }
-            }
-        }
-        .listStyle(InsetGroupedListStyle())
-        .refreshable {
-            Task {
-                await notificationManager.refreshTrackedItems()
-            }
-        }
-    }
-}
-
-struct AlertRow: View {
-    let alert: NotificationAlert
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 70, height: 70)
-                    .cornerRadius(8)
+            ZStack {
+                Color(.systemBackground).edgesIgnoringSafeArea(.all)
                 
-                let label = labelForAlertType(alert.alertType)
-                Text(label)
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(backgroundColorForAlertType(alert.alertType))
-                    .foregroundColor(.white)
-                    .cornerRadius(4)
-                    .padding(4)
-                
-                if let thumbnailUrl = alert.thumbnailUrl {
-                    AsyncImage(url: URL(string: thumbnailUrl)) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else if phase.error != nil {
-                            Color.gray
-                        } else {
-                            ProgressView()
+                VStack(spacing: 0) {
+                    // Custom header
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Notifications")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                            
+                            if !notificationManager.notifications.isEmpty {
+                                Text("\(notificationManager.unreadCount) new")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        if !notificationManager.notifications.isEmpty {
+                            Menu {
+                                Button(action: { notificationManager.markAllAsRead() }) {
+                                    Label("Mark All as Read", systemImage: "checkmark.circle")
+                                }
+                                
+                                Button(role: .destructive, action: { showingClearConfirmation = true }) {
+                                    Label("Clear All", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.title2)
+                                    .foregroundColor(.primary)
+                            }
                         }
                     }
-                    .frame(width: 70, height: 70)
-                    .cornerRadius(8)
-                    .clipped()
+                    .padding()
+                    
+                    // Filter tabs
+                    if !notificationManager.notifications.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(NotificationFilter.allCases, id: \.self) { filter in
+                                    FilterChip(
+                                        title: filter.rawValue,
+                                        icon: filter.icon,
+                                        isSelected: selectedFilter == filter,
+                                        count: countForFilter(filter)
+                                    ) {
+                                        withAnimation(.spring(response: 0.3)) {
+                                            selectedFilter = filter
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        .padding(.bottom, 8)
+                    }
+                    
+                    // Notifications list
+                    if notificationManager.isLoading && notificationManager.notifications.isEmpty {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Spacer()
+                    } else if filteredNotifications.isEmpty {
+                        Spacer()
+                        EmptyStateView(
+                            icon: selectedFilter == .all ? "bell.slash" : selectedFilter.icon,
+                            title: selectedFilter == .all ? "No Notifications" : "No \(selectedFilter.rawValue)",
+                            subtitle: selectedFilter == .all ? 
+                                "Track items to receive price alerts" : 
+                                "No \(selectedFilter.rawValue.lowercased()) at this time"
+                        )
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(filteredNotifications) { notification in
+                                    NotificationCard(
+                                        notification: notification,
+                                        onDismiss: {
+                                            withAnimation {
+                                                notificationManager.dismiss(notification)
+                                            }
+                                        }
+                                    )
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    ))
+                                }
+                            }
+                            .padding()
+                        }
+                        .refreshable {
+                            await refreshNotifications()
+                        }
+                    }
                 }
+            }
+            .navigationBarHidden(true)
+            .alert("Clear All Notifications", isPresented: $showingClearConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear All", role: .destructive) {
+                    withAnimation {
+                        notificationManager.clearAll()
+                    }
+                }
+            } message: {
+                Text("This will remove all notifications. This action cannot be undone.")
+            }
+            .onAppear {
+                notificationManager.startListening()
+            }
+            .onDisappear {
+                notificationManager.stopListening()
+            }
+        }
+    }
+    
+    private func countForFilter(_ filter: NotificationFilter) -> Int {
+        switch filter {
+        case .all:
+            return notificationManager.notifications.count
+        case .priceDrops:
+            return notificationManager.notifications.filter { $0.type == .priceDrop }.count
+        case .backInStock:
+            return notificationManager.notifications.filter { $0.type == .backInStock }.count
+        case .tracking:
+            return notificationManager.notifications.filter { $0.type == .trackingUpdate }.count
+        }
+    }
+    
+    private func refreshNotifications() async {
+        refreshing = true
+        await notificationManager.refresh()
+        refreshing = false
+    }
+}
+
+// Filter Chip Component
+struct FilterChip: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let count: Int
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isSelected ? Color.white : Color.primary)
+                        .foregroundColor(isSelected ? .primary : .white)
+                        .cornerRadius(8)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.primary : Color(.systemGray5))
+            .foregroundColor(isSelected ? .white : .primary)
+            .cornerRadius(20)
+        }
+    }
+}
+
+// Notification Card Component
+struct NotificationCard: View {
+    let notification: NotificationItem
+    let onDismiss: () -> Void
+    @State private var isExpanded = false
+    @State private var offset: CGFloat = 0
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(notification.type.color.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: notification.type.icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(notification.type.color)
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(alert.productName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                
-                if let currentBid = alert.currentBid {
-                    if alert.alertType == .priceDropped,
-                       let originalPrice = getOriginalPriceFromMessage(alert.message) {
-                        HStack(spacing: 6) {
-                            Text("$\(String(format: "%.2f", currentBid))")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.red)
-                            
-                            Text("$\(String(format: "%.2f", originalPrice))")
-                                .font(.caption)
-                                .strikethrough()
-                                .foregroundColor(.gray)
-                        }
-                    } else {
-                        Text("$\(String(format: "%.2f", currentBid))")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                }
-                
                 HStack {
-                    Text(alert.source)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Text(timeAgoString(from: alert.date))
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    Text(notification.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(isExpanded ? nil : 1)
                     
                     Spacer()
                     
-                    if alert.alertType == .endingSoon, let endTime = alert.auctionEndTime {
-                        Text(timeRemainingString(from: endTime))
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                    if !notification.isRead {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 8, height: 8)
                     }
+                }
+                
+                Text(notification.message)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .lineLimit(isExpanded ? nil : 2)
+                
+                HStack {
+                    Label(notification.source, systemImage: storeIcon(for: notification.source))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Text(notification.timestamp.relativeTime)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(notification.isRead ? Color(.systemGray6) : Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
+        .offset(x: offset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation.width < 0 {
+                        offset = value.translation.width
+                    }
+                }
+                .onEnded { value in
+                    withAnimation(.spring()) {
+                        if value.translation.width < -100 {
+                            offset = -UIScreen.main.bounds.width
+                            onDismiss()
+                        } else {
+                            offset = 0
+                        }
+                    }
+                }
+        )
+        .onTapGesture {
+            withAnimation(.spring(response: 0.3)) {
+                isExpanded.toggle()
+                if !notification.isRead {
+                    notification.isRead = true
                 }
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 20)
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-        .background(Color(.systemBackground))
-        .opacity(alert.isRead ? 0.7 : 1.0)
     }
     
-    private func getOriginalPriceFromMessage(_ message: String) -> Double? {
-        let components = message.components(separatedBy: "from $")
-        if components.count > 1 {
-            let priceString = components[1].components(separatedBy: " to $").first
-            return Double(priceString ?? "0")
-        }
-        return nil
-    }
-    
-    func labelForAlertType(_ type: NotificationAlertType) -> String {
-        switch type {
-        case .priceDropped:
-            return "Price Drop"
-        case .priceChange:
-            return "Price Change"
-        case .endingSoon:
-            return "Ending Soon"
-        case .backInStock:
-            return "Back In Stock"
-        case .itemSold:
-            return "Item Sold"
-        }
-    }
-    
-    func backgroundColorForAlertType(_ type: NotificationAlertType) -> Color {
-        switch type {
-        case .priceDropped:
-            return .red
-        case .priceChange:
-            return .blue
-        case .endingSoon:
-            return .orange
-        case .backInStock:
-            return .green
-        case .itemSold:
-            return .gray
-        }
-    }
-    
-    private func timeAgoString(from date: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.minute, .hour, .day], from: date, to: now)
-        
-        if let day = components.day, day > 0 {
-            return day == 1 ? "Yesterday" : "\(day)d ago"
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h ago"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m ago"
-        } else {
-            return "Just now"
-        }
-    }
-    
-    private func timeRemainingString(from endTime: Date) -> String {
-        let timeInterval = Date().distance(to: endTime)
-        let hours = Int(timeInterval) / 3600
-        let minutes = (Int(timeInterval) % 3600) / 60
-        
-        if hours > 0 {
-            return "\(hours)h \(minutes)m left"
-        } else {
-            return "\(minutes)m left"
+    private func storeIcon(for store: String) -> String {
+        switch store.lowercased() {
+        case "bestbuy":
+            return "cart.fill"
+        case "ebay":
+            return "tag.fill"
+        case "walmart":
+            return "bag.fill"
+        default:
+            return "storefront.fill"
         }
     }
 }
 
-//MARK: - Extensions
+// Notification Models
+class NotificationItem: ObservableObject, Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let type: NotificationType
+    let source: String
+    let productId: String?
+    let timestamp: Date
+    @Published var isRead: Bool
+    
+    init(title: String, message: String, type: NotificationType, source: String, productId: String? = nil, isRead: Bool = false) {
+        self.title = title
+        self.message = message
+        self.type = type
+        self.source = source
+        self.productId = productId
+        self.timestamp = Date()
+        self.isRead = isRead
+    }
+}
 
-extension NotificationType {
-    var toAlertType: NotificationType {
+enum NotificationType {
+    case priceDrop
+    case backInStock
+    case trackingUpdate
+    
+    var icon: String {
         switch self {
-        case .priceDropped, .priceChange:
-            return .priceDropped
-        case .endingSoon, .auctionEnding:
-            return .endingSoon
-        case .itemSold:
-            return .itemSold
-        case .backInStock, .inventoryChange:
-            return .backInStock
+        case .priceDrop: return "arrow.down.circle.fill"
+        case .backInStock: return "checkmark.circle.fill"
+        case .trackingUpdate: return "bell.badge.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .priceDrop: return .green
+        case .backInStock: return .blue
+        case .trackingUpdate: return .orange
         }
     }
 }
 
-// Empty state specifically for notifications
-struct NotificationsEmptyView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "bell.slash")
-                .font(.system(size: 40))
-                .foregroundColor(.gray)
-            
-            Text("No notifications yet")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Text("You'll see alerts here when your tracked items have updates")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.vertical, 40)
+// Unified Notification Manager
+class UnifiedNotificationManager: ObservableObject {
+    @Published var notifications: [NotificationItem] = []
+    @Published var isLoading = false
+    
+    private var bestBuyTracker = BestBuyPriceTracker()
+    private var ebayManager = EbayNotificationManager()
+    private var cancellables = Set<AnyCancellable>()
+    
+    var unreadCount: Int {
+        notifications.filter { !$0.isRead }.count
+    }
+    
+    init() {
+        loadMockNotifications()
+    }
+    
+    func startListening() {
+        // Listen to BestBuy price drops
+        bestBuyTracker.objectWillChange
+            .sink { [weak self] _ in
+                self?.checkForPriceDrops()
+            }
+            .store(in: &cancellables)
+        
+        // Listen to eBay notifications
+        // In real implementation, this would connect to webhook events
+    }
+    
+    func stopListening() {
+        cancellables.removeAll()
+    }
+    
+    func refresh() async {
+        isLoading = true
+        // Simulate API refresh
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        loadMockNotifications()
+        isLoading = false
+    }
+    
+    func markAllAsRead() {
+        notifications.forEach { $0.isRead = true }
+    }
+    
+    func dismiss(_ notification: NotificationItem) {
+        notifications.removeAll { $0.id == notification.id }
+    }
+    
+    func clearAll() {
+        notifications.removeAll()
+    }
+    
+    private func checkForPriceDrops() {
+        // Check tracked items for price changes
+        // This would be connected to real price tracking logic
+    }
+    
+    private func loadMockNotifications() {
+        notifications = [
+            NotificationItem(
+                title: "Price Drop Alert!",
+                message: "Apple AirPods Pro dropped from $249.99 to $199.99 - Save $50!",
+                type: .priceDrop,
+                source: "BestBuy"
+            ),
+            NotificationItem(
+                title: "Back in Stock",
+                message: "Sony WH-1000XM5 Wireless Headphones are now available",
+                type: .backInStock,
+                source: "eBay",
+                isRead: true
+            ),
+            NotificationItem(
+                title: "Tracking Started",
+                message: "You're now tracking Nintendo Switch OLED Model",
+                type: .trackingUpdate,
+                source: "BestBuy"
+            ),
+            NotificationItem(
+                title: "Price Increased",
+                message: "Samsung 65\" OLED TV price went up by $200",
+                type: .trackingUpdate,
+                source: "BestBuy",
+                isRead: true
+            ),
+            NotificationItem(
+                title: "Flash Sale!",
+                message: "Apple Watch Series 9 is 20% off for the next 2 hours",
+                type: .priceDrop,
+                source: "eBay"
+            )
+        ]
     }
 }
 
-//MARK: - Preview
+// Date Extension for relative time
+extension Date {
+    var relativeTime: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
+    }
+}
 
 #Preview {
-    NavigationView {
-        let ebayService = EbayAPIService(apiKey: "test_key")
-        let notificationManager = EbayNotificationManager(ebayService: ebayService)
-        notificationManager.addMockAlerts()
-        
-        return NotificationsView()
-            .environmentObject(notificationManager)
-    }
+    NotificationsView()
 }
