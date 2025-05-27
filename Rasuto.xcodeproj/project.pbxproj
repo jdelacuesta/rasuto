@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AD405F922DDE5D8900F2D411 /* .env in Resources */ = {isa = PBXBuildFile; fileRef = AD405F912DDE5D8900F2D411 /* .env */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		ADF563382DAD9270001CFC96 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AD405F912DDE5D8900F2D411 /* .env */ = {isa = PBXFileReference; lastKnownFileType = text; path = .env; sourceTree = "<group>"; };
 		ADF563262DAD926E001CFC96 /* Rasuto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rasuto.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADF563372DAD9270001CFC96 /* RasutoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RasutoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADF563412DAD9270001CFC96 /* RasutoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RasutoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,6 +93,7 @@
 		ADF5631D2DAD926E001CFC96 = {
 			isa = PBXGroup;
 			children = (
+				AD405F912DDE5D8900F2D411 /* .env */,
 				ADF563282DAD926E001CFC96 /* Rasuto */,
 				ADF5633A2DAD9270001CFC96 /* RasutoTests */,
 				ADF563442DAD9270001CFC96 /* RasutoUITests */,
@@ -208,6 +214,9 @@
 			);
 			mainGroup = ADF5631D2DAD926E001CFC96;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AD82DA2E2DC150E600695ADE /* XCRemoteSwiftPackageReference "lottie-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ADF563272DAD926E001CFC96 /* Products */;
 			projectDirPath = "";
@@ -225,6 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD405F922DDE5D8900F2D411 /* .env in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -575,6 +585,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AD82DA2E2DC150E600695ADE /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = ADF5631E2DAD926E001CFC96 /* Project object */;
 }

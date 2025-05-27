@@ -60,3 +60,17 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+Rasuto/Services/APIs/SecretKeys.swift
+Rasuto/SecretKeys.swift
+Rasuto/Services/APIs/SecretKeys.swift
+Rasuto.xcodeproj/xcshareddata/xcschemes/
+
+# Environment variables with secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# OAuth configuration files with secrets
+Rasuto/Services/APIs/Retailers/Ebay/ebay-auth-debug.js
+Rasuto/Services/APIs/Retailers/Ebay/ebay-oauth-config.js
