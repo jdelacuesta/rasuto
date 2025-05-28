@@ -408,7 +408,7 @@ struct RealSavedItemCard: View {
                     VStack {
                         Button(action: {
                             Task {
-                                await wishlistService.removeFromWishlist(productId: product.id)
+                                await wishlistService.removeFromWishlist(product.id)
                             }
                         }) {
                             Image(systemName: "heart.fill")

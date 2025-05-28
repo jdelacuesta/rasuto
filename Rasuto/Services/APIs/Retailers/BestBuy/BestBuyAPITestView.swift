@@ -26,6 +26,7 @@ struct BestBuyAPITestView: View {
     @State private var debugMessages: [String] = []
     @State private var isShowingMockData = false
     @State private var showSearchSuggestions = false
+    @State private var showNetworkStatusModal = false
     
     // Add focus state for handling keyboard
     @FocusState private var isSearchFieldFocused: Bool
@@ -35,6 +36,7 @@ struct BestBuyAPITestView: View {
     
     @EnvironmentObject var priceTracker: BestBuyPriceTracker
     @StateObject private var wishlistService = WishlistService()
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     
     // Service initialization
     @State private var service: BestBuyAPIService?
@@ -58,16 +60,50 @@ struct BestBuyAPITestView: View {
         .toolbar {
 #if DEBUG
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showDebugPanel.toggle()
-                }) {
-                    Image(systemName: "wrench.and.screwdriver")
+                Menu {
+                    Button(action: {
+                        showDebugPanel.toggle()
+                    }) {
+                        Label("Debug Panel", systemImage: "wrench.and.screwdriver")
+                    }
+                    
+                    Button(action: {
+                        showNetworkStatusModal.toggle()
+                    }) {
+                        Label("Network Test", systemImage: "network")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
 #endif
         }
         .overlay(
             debugPanelView
+        )
+        .overlay(
+            // Network Status Modal
+            Group {
+                if showNetworkStatusModal {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                showNetworkStatusModal = false
+                            }
+                        
+                        NetworkStatusModal(
+                            isPresented: $showNetworkStatusModal,
+                            networkMonitor: networkMonitor,
+                            onTestRequest: {
+                                await networkMonitor.testConnectivity()
+                            }
+                        )
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showNetworkStatusModal)
         )
         .onAppear {
             initializeService()
@@ -231,18 +267,17 @@ struct BestBuyAPITestView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
+    @ViewBuilder
     private var productListView: some View {
-        Group {
-            if products.isEmpty {
-                emptyStateView
-            } else {
-                List(products, id: \.sourceId) { product in
-                    NavigationLink(destination: ProductDetailView(product: product)) {
-                        ProductRow(product: product, wishlistService: wishlistService)
-                    }
+        if products.isEmpty {
+            emptyStateView
+        } else {
+            List(products, id: \.sourceId) { product in
+                NavigationLink(destination: BestBuyProductDetailView(product: product)) {
+                    ProductRow(product: product, wishlistService: wishlistService)
                 }
-                .listStyle(PlainListStyle())
             }
+            .listStyle(PlainListStyle())
         }
     }
     
@@ -1031,7 +1066,7 @@ struct StarsView: View {
     }
 }
 
-struct ProductDetailView: View {
+struct BestBuyProductDetailView: View {
     let product: ProductItemDTO
     @EnvironmentObject var priceTracker: BestBuyPriceTracker
     @State private var showTrackingConfirmation = false

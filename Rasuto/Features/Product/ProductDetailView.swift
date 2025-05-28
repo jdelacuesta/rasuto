@@ -487,7 +487,19 @@ struct ShareSheet: UIViewControllerRepresentable {
 // MARK: - Preview
 
 #Preview {
-    ProductDetailView(product: ProductItem.sampleItems[0])
+    ProductDetailView(product: ProductItem(
+        name: "Sample Product",
+        productDescription: "Sample product description",
+        price: 99.99,
+        currency: "USD",
+        url: URL(string: "https://example.com"),
+        brand: "Sample Brand",
+        source: "BestBuy",
+        sourceId: "12345",
+        category: "Electronics",
+        imageURL: URL(string: "https://example.com/image.jpg"),
+        isInStock: true
+    ))
         .environmentObject(WishlistService())
         .environmentObject(BestBuyPriceTracker(bestBuyService: BestBuyAPIService(apiKey: "test")))
         .environmentObject(EbayNotificationManager())
