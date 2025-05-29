@@ -28,7 +28,7 @@ enum APIError: Error {
 }
 
 // DTO for transferring product data between services and views
-struct ProductItemDTO: Identifiable {
+struct ProductItemDTO: Identifiable, Codable {
     let id: UUID
     let sourceId: String
     let name: String
@@ -47,6 +47,7 @@ struct ProductItemDTO: Identifiable {
     let reviewCount: Int?
     let isFavorite: Bool
     let isTracked: Bool
+    let productUrl: String?
     
     init(id: UUID = UUID(),
          sourceId: String,
@@ -65,7 +66,8 @@ struct ProductItemDTO: Identifiable {
          rating: Double? = nil,
          reviewCount: Int? = nil,
          isFavorite: Bool = false,
-         isTracked: Bool = false) {
+         isTracked: Bool = false,
+         productUrl: String? = nil) {
         self.id = id
         self.sourceId = sourceId
         self.name = name
@@ -84,6 +86,7 @@ struct ProductItemDTO: Identifiable {
         self.reviewCount = reviewCount
         self.isFavorite = isFavorite
         self.isTracked = isTracked
+        self.productUrl = productUrl
     }
 }
 

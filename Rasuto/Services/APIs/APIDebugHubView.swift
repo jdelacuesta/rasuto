@@ -551,6 +551,8 @@ struct APIDebugHubView: View {
     @State private var isEbayConnectionTesting = false
     @State private var bestBuyConnectionEnabled = true
     @State private var isBestBuyConnectionTesting = false
+    @State private var walmartConnectionEnabled = true
+    @State private var isWalmartConnectionTesting = false
     @State private var isDemoMode = UserDefaults.standard.bool(forKey: "com.rasuto.demoMode")
     @State private var demoModeEnabled = false
     @State private var apiEndpoints: [APIEndpoint] = [
@@ -606,7 +608,7 @@ struct APIDebugHubView: View {
                     Spacer()
                     
                     // Add direct test button for API types
-                    if (type == .ebay || type == .bestBuy) && !isDisabled {
+                    if (type == .ebay || type == .bestBuy || type == .walmart) && !isDisabled {
                         Button(action: {
                             Task {
                                 await forceTestAPI(type)
@@ -643,8 +645,8 @@ struct APIDebugHubView: View {
             }
             .disabled(isDisabled)
             
-            // Add connection toggle for eBay and Best Buy APIs
-            if type == .ebay || type == .bestBuy {
+            // Add connection toggle for eBay, Best Buy, and Walmart APIs
+            if type == .ebay || type == .bestBuy || type == .walmart {
                 HStack {
                     Text("Connection")
                         .font(.caption)
@@ -652,9 +654,9 @@ struct APIDebugHubView: View {
                     
                     Spacer()
                     
-                    Toggle("", isOn: type == .ebay ? $ebayConnectionEnabled : $bestBuyConnectionEnabled)
+                    Toggle("", isOn: type == .ebay ? $ebayConnectionEnabled : (type == .bestBuy ? $bestBuyConnectionEnabled : $walmartConnectionEnabled))
                         .labelsHidden()
-                        .onChange(of: type == .ebay ? ebayConnectionEnabled : bestBuyConnectionEnabled) { newValue in
+                        .onChange(of: type == .ebay ? ebayConnectionEnabled : (type == .bestBuy ? bestBuyConnectionEnabled : walmartConnectionEnabled)) { newValue in
                             toggleAPIConnection(type, enabled: newValue)
                         }
                 }
@@ -748,14 +750,14 @@ struct APIDebugHubView: View {
                                 type: .bestBuy
                             )
                             
-                            // Walmart API Card (Coming Soon)
+                            // Walmart API Card
                             apiCard(
                                 title: "Walmart API",
-                                description: "Coming Soon - Walmart API integration",
+                                description: "Test and debug Walmart API integration",
                                 icon: "bag",
-                                status: .disabled,
+                                status: walmartAPIStatus,
                                 type: .walmart,
-                                isDisabled: true
+                                isDisabled: false
                             )
                             
                             // System Utilities
@@ -836,15 +838,18 @@ struct APIDebugHubView: View {
                         // First verify API keys are set correctly
                         let ebayKeysValid = await verifyAPIKeys(.ebay)
                         let bestBuyKeysValid = await verifyAPIKeys(.bestBuy)
+                        let walmartKeysValid = await verifyAPIKeys(.walmart)
                         
                         // Update connection toggle states based on key verification
                         await MainActor.run {
                             ebayConnectionEnabled = ebayKeysValid
                             bestBuyConnectionEnabled = bestBuyKeysValid
+                            walmartConnectionEnabled = walmartKeysValid
                             
                             // Set initial status based on key availability
                             ebayAPIStatus = ebayKeysValid ? .checking : .disabled
                             bestBuyAPIStatus = bestBuyKeysValid ? .checking : .disabled
+                            walmartAPIStatus = walmartKeysValid ? .checking : .disabled
                         }
                         
                         // Then check actual API status
@@ -886,9 +891,8 @@ struct APIDebugHubView: View {
                                     }
                             }
                         case .walmart:
-                            // Placeholder for Walmart API view (coming soon)
                             NavigationView {
-                                Text("Walmart API Testing Coming Soon")
+                                WalmartAPITestView()
                                     .toolbar {
                                         ToolbarItem(placement: .navigationBarTrailing) {
                                             Button("Close") {
@@ -1033,9 +1037,11 @@ struct APIDebugHubView: View {
             addDebugMessage(bestBuyStatus == .available ? "✅ Best Buy API connection successful" : "❌ Best Buy API connection failed")
         }
         
-        // For now, Walmart API is marked as coming soon
+        // Check Walmart API status
+        let walmartStatus = await checkWalmartAPIStatus()
         await MainActor.run {
-            walmartAPIStatus = .disabled
+            walmartAPIStatus = walmartStatus
+            addDebugMessage(walmartStatus == .available ? "✅ Walmart API connection successful" : "❌ Walmart API connection failed")
         }
     }
     
@@ -1125,6 +1131,50 @@ struct APIDebugHubView: View {
         }
     }
     
+    private func checkWalmartAPIStatus() async -> APIStatus {
+        addDebugMessage("🔍 Testing Walmart API connection...")
+        
+        do {
+            // Get and display the API key (truncated for security)
+            if let key = try? APIKeyManager.shared.getAPIKey(for: "walmart-rapidapi") {
+                addDebugMessage("🔑 Using Walmart RapidAPI Key: \(key.prefix(4))...")
+            } else {
+                addDebugMessage("⚠️ Walmart RapidAPI Key not found in keychain")
+                
+                // Try to get from SecretKeys
+                let directKey = SecretKeys.walmartApiKey
+                addDebugMessage("🔑 Using direct key: \(directKey.prefix(4))...")
+                
+                // Try to save it to keychain
+                do {
+                    try APIKeyManager.shared.saveAPIKey(for: "walmart-rapidapi", key: directKey)
+                    addDebugMessage("✅ Saved direct key to keychain")
+                } catch {
+                    addDebugMessage("❌ Failed to save key to keychain: \(error.localizedDescription)")
+                }
+            }
+            
+            // Create WalmartAPIService
+            let walmartService = await WalmartAPIService(apiKey: SecretKeys.walmartApiKey)
+            addDebugMessage("✅ WalmartAPIService created successfully")
+            
+            // Test API connection
+            addDebugMessage("🔍 Testing connection to Walmart RapidAPI endpoint...")
+            let success = await walmartService.testConnection()
+            
+            if success {
+                addDebugMessage("✅ Walmart API connection successful")
+            } else {
+                addDebugMessage("❌ Walmart API connection failed")
+            }
+            
+            return success ? .available : .error
+        } catch {
+            addDebugMessage("❌ Error creating WalmartAPIService: \(error.localizedDescription)")
+            return .error
+        }
+    }
+    
     // MARK: - API Testing and Connection Methods
     
     private func forceTestAPI(_ type: APIViewType) async {
@@ -1136,6 +1186,8 @@ struct APIDebugHubView: View {
                 ebayAPIStatus = .checking
             } else if type == .bestBuy {
                 bestBuyAPIStatus = .checking
+            } else if type == .walmart {
+                walmartAPIStatus = .checking
             }
         }
         
@@ -1249,6 +1301,10 @@ struct APIDebugHubView: View {
         case .bestBuy:
             // Best Buy test implementation
             await performBestBuyTest()
+            
+        case .walmart:
+            // Walmart test implementation
+            await performWalmartTest()
             
         default:
             break
@@ -1402,6 +1458,34 @@ struct APIDebugHubView: View {
         }
     }
     
+    // Perform Walmart API test
+    private func performWalmartTest() async {
+        addDebugMessage("🔬 Testing Walmart API directly within main view...")
+        
+        // If in demo mode, always succeed
+        if isDemoMode {
+            addDebugMessage("✅ Demo mode: Simulating successful Walmart API direct test")
+            await MainActor.run {
+                walmartAPIStatus = .available
+            }
+            return
+        }
+        
+        // Create WalmartAPIService and test
+        let walmartService = await WalmartAPIService(apiKey: SecretKeys.walmartApiKey)
+        let success = await walmartService.testConnection()
+        
+        await MainActor.run {
+            if success {
+                walmartAPIStatus = .available
+                addDebugMessage("✅ Walmart API direct test successful")
+            } else {
+                walmartAPIStatus = .error
+                addDebugMessage("❌ Walmart API direct test failed")
+            }
+        }
+    }
+    
     // MARK: - API Connection Control
     
     private func toggleAPIConnection(_ type: APIViewType, enabled: Bool) {
@@ -1515,6 +1599,43 @@ struct APIDebugHubView: View {
                     }
                 }
                 
+            case .walmart:
+                if enabled {
+                    // Re-enable Walmart API
+                    do {
+                        // Use Walmart API key
+                        let apiKey = SecretKeys.walmartApiKey
+                        
+                        try APIKeyManager.shared.saveAPIKey(for: "walmart-rapidapi", key: apiKey)
+                        addDebugMessage("✅ Walmart API key saved")
+                        
+                        // Add a small delay to ensure keychain updates are processed
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                        
+                        // Force test connection to update status
+                        await forceTestAPI(.walmart)
+                    } catch {
+                        addDebugMessage("❌ Failed to restore Walmart API key: \(error.localizedDescription)")
+                        await MainActor.run {
+                            walmartAPIStatus = .error
+                        }
+                    }
+                } else {
+                    // Disable Walmart API
+                    do {
+                        try APIKeyManager.shared.deleteAPIKey(for: "walmart-rapidapi")
+                        addDebugMessage("✅ Walmart API key removed")
+                        await MainActor.run {
+                            walmartAPIStatus = .disabled
+                        }
+                    } catch {
+                        addDebugMessage("❌ Failed to remove Walmart API key: \(error.localizedDescription)")
+                        await MainActor.run {
+                            walmartAPIStatus = .error
+                        }
+                    }
+                }
+                
             default:
                 break
             }
@@ -1558,6 +1679,22 @@ struct APIDebugHubView: View {
                 return apiKey.count > 0
             } catch {
                 addDebugMessage("❌ Best Buy API Key verification failed: \(error.localizedDescription)")
+                return false
+            }
+            
+        case .walmart:
+            do {
+                let apiKey = try APIKeyManager.shared.getAPIKey(for: "walmart-rapidapi")
+                
+                // Check if key matches expected value (for debugging)
+                let expectedApiKey = SecretKeys.walmartApiKey
+                let apiKeyMatch = apiKey == expectedApiKey
+                
+                addDebugMessage("🔍 Walmart API Key verification: \(apiKeyMatch ? "✅ Matches" : "❌ Does not match")")
+                
+                return apiKey.count > 0
+            } catch {
+                addDebugMessage("❌ Walmart API Key verification failed: \(error.localizedDescription)")
                 return false
             }
             
@@ -1605,6 +1742,11 @@ struct APIDebugHubView: View {
                     success = false
                 }
                 
+            case .walmart:
+                // Try the API test
+                let walmartService = await WalmartAPIService(apiKey: SecretKeys.walmartApiKey)
+                success = await walmartService.testConnection()
+                
             default:
                 return false
             }
@@ -1616,6 +1758,8 @@ struct APIDebugHubView: View {
                         ebayAPIStatus = .available
                     } else if type == .bestBuy {
                         bestBuyAPIStatus = .available
+                    } else if type == .walmart {
+                        walmartAPIStatus = .available
                     }
                 }
                 return true
@@ -1640,6 +1784,8 @@ struct APIDebugHubView: View {
                 ebayAPIStatus = .checking
             } else if type == .bestBuy {
                 bestBuyAPIStatus = .checking
+            } else if type == .walmart {
+                walmartAPIStatus = .checking
             }
         }
         
@@ -1710,6 +1856,36 @@ struct APIDebugHubView: View {
             await MainActor.run {
                 bestBuyConnectionEnabled = true
                 bestBuyAPIStatus = success ? .available : .error
+            }
+            
+        case .walmart:
+            // Step 1: Remove existing key
+            do {
+                try APIKeyManager.shared.deleteAPIKey(for: "walmart-rapidapi")
+                addDebugMessage("✅ Removed existing Walmart API key")
+            } catch {
+                addDebugMessage("⚠️ Error removing Walmart key: \(error.localizedDescription)")
+            }
+            
+            // Step 2: Add fresh key
+            do {
+                let apiKey = SecretKeys.walmartApiKey
+                try APIKeyManager.shared.saveAPIKey(for: "walmart-rapidapi", key: apiKey)
+                addDebugMessage("✅ Added fresh Walmart API key")
+            } catch {
+                addDebugMessage("❌ Error adding fresh Walmart key: \(error.localizedDescription)")
+                await MainActor.run {
+                    walmartAPIStatus = .error
+                }
+                return
+            }
+            
+            // Step 3: Test connection with retries
+            let success = await retryAPIConnection(.walmart)
+            
+            await MainActor.run {
+                walmartConnectionEnabled = true
+                walmartAPIStatus = success ? .available : .error
             }
             
         default:

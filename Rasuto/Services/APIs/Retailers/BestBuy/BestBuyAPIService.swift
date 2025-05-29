@@ -135,7 +135,7 @@ struct BestBuyPopularTermsData: Decodable {
 
 // MARK: - Product Pricing Models
 
-struct BestBuyProductPricing: Decodable {
+struct BestBuyProductPricing: Codable {
     let sku: String
     let currentPrice: Double
     let regularPrice: Double
@@ -155,14 +155,14 @@ struct BestBuyProductPricing: Decodable {
     }
 }
 
-struct BestBuyProductPricingResponse: Decodable {
+struct BestBuyProductPricingResponse: Codable {
     let success: Bool
     let message: String
     let data: BestBuyProductPricingData?
     let error: String?
 }
 
-struct BestBuyProductPricingData: Decodable {
+struct BestBuyProductPricingData: Codable {
     let pricing: BestBuyProductPricing
 }
 
@@ -173,8 +173,18 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
     private let baseURL = "https://bestbuy-usa.p.rapidapi.com"
     private let rapidAPIHost = "bestbuy-usa.p.rapidapi.com"
     
+    // MARK: - Modern Infrastructure (Phase 1 Migration)
+    private let optimizedClient = OptimizedAPIClient.shared
+    private let modernCacheManager = UnifiedCacheManager.shared
+    private let globalRateLimiter = GlobalRateLimiter.shared
+    private let circuitBreaker = CircuitBreakerManager.shared
+    
     // Using a demo mode flag to always show success in demonstrations
     private var isDemoMode = false
+    
+    // Feature flags for gradual migration
+    private let useModernCache = true
+    private let useModernRateLimiting = true
     
     // Cache categories to avoid redundant API calls
     private var cachedCategories: [BestBuyCategory]?
@@ -486,6 +496,68 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
         )
     ]
     
+    // MARK: - Modern Infrastructure Helpers (Phase 1 Migration)
+    
+    /// Perform a cached request using modern infrastructure
+    private func performCachedRequest<T: Codable>(
+        endpoint: String,
+        cacheKey: String,
+        ttl: TimeInterval = 3600,
+        decoder: JSONDecoder = JSONDecoder()
+    ) async throws -> T {
+        // Check modern cache first
+        if let cached: T = await modernCacheManager.get(key: cacheKey) {
+            print("🔄 Modern cache hit for key: \(cacheKey)")
+            return cached
+        }
+        
+        // Perform request using optimized client
+        let url = URL(string: "\(baseURL)/\(endpoint)")!
+        var request = URLRequest(url: url)
+        request.addValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
+        request.addValue(rapidAPIHost, forHTTPHeaderField: "X-RapidAPI-Host")
+        
+        let result: T = try await optimizedClient.performRequest(
+            request,
+            responseType: T.self
+        )
+        
+        // Cache the result
+        await modernCacheManager.set(key: cacheKey, value: result, ttl: ttl)
+        
+        return result
+    }
+    
+    /// Perform a rate-limited request using modern infrastructure
+    private func performRateLimitedRequest<T: Codable>(
+        request: URLRequest,
+        responseType: T.Type,
+        priority: RequestPriority = .normal
+    ) async throws -> T {
+        // Check rate limit
+        try await globalRateLimiter.checkAndConsume(
+            service: "bestbuy",
+            priority: priority
+        )
+        
+        // Check circuit breaker
+        guard await circuitBreaker.canExecute(service: "bestbuy") else {
+            throw APIError.custom("Circuit breaker open for BestBuy API")
+        }
+        
+        do {
+            let result: T = try await optimizedClient.performRequest(
+                request,
+                responseType: responseType
+            )
+            await circuitBreaker.recordSuccess(service: "bestbuy")
+            return result
+        } catch {
+            await circuitBreaker.recordFailure(service: "bestbuy")
+            throw error
+        }
+    }
+    
     // MARK: - Initialization
     
     // Enable demo mode explicitly (useful for demos/presentations)
@@ -536,27 +608,57 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
         return BestBuyAPIService(apiKey: "PREVIEW_API_KEY", demoMode: true)
     }
     
+    // MARK: - Helper Methods
+    
+    private func filterMockProducts(query: String) -> [ProductItemDTO] {
+        guard !query.isEmpty else { return mockProducts }
+        
+        let lowercasedQuery = query.lowercased()
+        return mockProducts.filter { product in
+            product.name.lowercased().contains(lowercasedQuery) ||
+            (product.productDescription?.lowercased().contains(lowercasedQuery) ?? false) ||
+            product.brand.lowercased().contains(lowercasedQuery) ||
+            (product.category?.lowercased().contains(lowercasedQuery) ?? false)
+        }
+    }
+    
     func searchProducts(query: String) async throws -> [ProductItemDTO] {
-        // Check cache first to save API calls
-        let cacheKey = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if let cachedResults = cachedSearchResults[cacheKey],
-           let cacheTime = searchCacheTimestamps[cacheKey],
-           Date().timeIntervalSince(cacheTime) < searchCacheLifetime {
-            print("🔄 Using cached search results for '\(query)'")
-            return cachedResults
+        let cacheKey = "bestbuy_search_\(query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))"
+        
+        // Use modern cache if enabled
+        if useModernCache {
+            if let cachedResults: [ProductItemDTO] = await modernCacheManager.get(key: cacheKey) {
+                print("🔄 Modern cache hit for search: '\(query)'")
+                return cachedResults
+            }
+        } else {
+            // Legacy cache check
+            let legacyCacheKey = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            if let cachedResults = cachedSearchResults[legacyCacheKey],
+               let cacheTime = searchCacheTimestamps[legacyCacheKey],
+               Date().timeIntervalSince(cacheTime) < searchCacheLifetime {
+                print("🔄 Using cached search results for '\(query)'")
+                return cachedResults
+            }
         }
         
-        // Check rate limit before making API call
-        if shouldUseRateLimitProtection() {
-            print("⚠️ Rate limit protection: Using mock data to preserve API quota")
-            let filteredMockProducts = mockProducts.filter { product in
-                !query.isEmpty ? (
-                    product.name.lowercased().contains(query.lowercased()) ||
-                    (product.productDescription?.lowercased().contains(query.lowercased()) ?? false) ||
-                    product.brand.lowercased().contains(query.lowercased())
-                ) : true
+        // Use modern rate limiting if enabled
+        if useModernRateLimiting {
+            do {
+                try await globalRateLimiter.checkAndConsume(
+                    service: "bestbuy",
+                    priority: .normal
+                )
+            } catch {
+                print("⚠️ Rate limit exceeded: Using mock data")
+                return filterMockProducts(query: query)
             }
-            return filteredMockProducts
+        } else {
+            // Legacy rate limit check
+            if shouldUseRateLimitProtection() {
+                print("⚠️ Rate limit protection: Using mock data to preserve API quota")
+                return filterMockProducts(query: query)
+            }
         }
         
         // Return mock data if demo mode is enabled or in testing mode
@@ -606,9 +708,18 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
         }
         
         // Cache the results
-        cachedSearchResults[cacheKey] = products
-        searchCacheTimestamps[cacheKey] = Date()
-        print("📦 Cached hybrid search results for '\(query)' (\(products.count) products)")
+        if useModernCache {
+            await modernCacheManager.set(
+                key: "bestbuy_search_\(cacheKey)",
+                value: products,
+                ttl: 3600 // 1 hour
+            )
+            print("📦 Cached hybrid search results in modern cache for '\(query)' (\(products.count) products)")
+        } else {
+            cachedSearchResults[cacheKey] = products
+            searchCacheTimestamps[cacheKey] = Date()
+            print("📦 Cached hybrid search results for '\(query)' (\(products.count) products)")
+        }
         
         return products
     }
@@ -1455,22 +1566,51 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
             )
         }
         
-        let urlString = "\(baseURL)/product/\(sku)/pricing"
-        guard let url = URL(string: urlString) else {
-            throw APIError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        
-        // Add headers required by RapidAPI
-        request.addValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
-        request.addValue(rapidAPIHost, forHTTPHeaderField: "X-RapidAPI-Host")
-        
-        // Increment API call counter
-        incrementAPICallCount()
+        // MIGRATION: Use modern infrastructure for this endpoint
+        let cacheKey = "bestbuy_pricing_\(sku)"
+        let endpoint = "product/\(sku)/pricing"
         
         do {
+            // Try using modern cached request first
+            let response: BestBuyProductPricingResponse = try await performCachedRequest(
+                endpoint: endpoint,
+                cacheKey: cacheKey,
+                ttl: 3600 // 1 hour cache for pricing
+            )
+            
+            guard response.success else {
+                let errorMsg = response.error ?? "Unknown API error"
+                throw APIError.custom(errorMsg)
+            }
+            
+            guard let pricingData = response.data else {
+                throw APIError.custom("No pricing data available")
+            }
+            
+            // Still increment counter for quota tracking
+            incrementAPICallCount()
+            
+            return pricingData.pricing
+            
+        } catch {
+            // Fallback to original implementation if modern approach fails
+            print("⚠️ Modern infrastructure failed, falling back to legacy implementation: \(error)")
+            
+            let urlString = "\(baseURL)/product/\(sku)/pricing"
+            guard let url = URL(string: urlString) else {
+                throw APIError.invalidURL
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            
+            // Add headers required by RapidAPI
+            request.addValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
+            request.addValue(rapidAPIHost, forHTTPHeaderField: "X-RapidAPI-Host")
+            
+            // Increment API call counter
+            incrementAPICallCount()
+            
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -1517,9 +1657,6 @@ class BestBuyAPIService: RetailerAPIService, APITestable {
             default:
                 throw APIError.invalidResponse
             }
-        } catch {
-            print("❌ Failed to fetch pricing for SKU \(sku): \(error)")
-            throw error
         }
     }
     

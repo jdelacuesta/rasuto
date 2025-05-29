@@ -11,6 +11,17 @@ import Foundation
 class EbayAPIService: RetailerAPIService {
     let apiKey: String
     
+    // MARK: - Modern Infrastructure (Phase 1 Migration)
+    private let optimizedClient = OptimizedAPIClient.shared
+    private let modernCacheManager = UnifiedCacheManager.shared
+    private let globalRateLimiter = GlobalRateLimiter.shared
+    private let circuitBreaker = CircuitBreakerManager.shared
+    
+    // Feature flags for gradual migration
+    private let useModernCache = true
+    private let useModernRateLimiting = true
+    private let serviceName = "ebay"
+    
     // Base URLs - updated to support Sandbox mode
     private let isSandbox: Bool
     
@@ -26,7 +37,7 @@ class EbayAPIService: RetailerAPIService {
         return isSandbox ? "https://api.sandbox.ebay.com/commerce/notification/v1" : "https://api.ebay.com/commerce/notification/v1"
     }
     
-    // Rate limiting constants matching your config
+    // Legacy rate limiting constants (kept for backward compatibility)
     private let requestsPerSecond = 5
     private let hourlyRequestLimit = 5000
     
@@ -50,6 +61,20 @@ class EbayAPIService: RetailerAPIService {
     
     // Webhook handler for processing incoming notifications
     private lazy var webhookHandler: EbayWebhookHandler? = nil
+    
+    // MARK: - Helper Methods
+    
+    private func filterMockProducts(query: String) -> [ProductItemDTO] {
+        guard !query.isEmpty else { return mockProducts }
+        
+        let lowercasedQuery = query.lowercased()
+        return mockProducts.filter { product in
+            product.name.lowercased().contains(lowercasedQuery) ||
+            (product.productDescription?.lowercased().contains(lowercasedQuery) ?? false) ||
+            product.brand.lowercased().contains(lowercasedQuery) ||
+            (product.category?.lowercased().contains(lowercasedQuery) ?? false)
+        }
+    }
     
     // MARK: - Mock Data
     
@@ -179,23 +204,39 @@ class EbayAPIService: RetailerAPIService {
 
     // Internal implementation with category support
     func searchProductsWithCategory(query: String, categoryId: String? = nil) async throws -> [ProductItemDTO] {
+        // Modern cache key
+        let cacheKey = "ebay_search_\(query.lowercased())_\(categoryId ?? "")"
+        
+        // Check modern cache if enabled
+        if useModernCache {
+            if let cachedResults: [ProductItemDTO] = await modernCacheManager.get(key: cacheKey) {
+                APILogger.log("Modern cache hit for search: '\(query)'", type: .success)
+                return cachedResults
+            }
+        }
+        
+        // Check modern rate limit if enabled
+        if useModernRateLimiting {
+            do {
+                try await globalRateLimiter.checkAndConsume(
+                    service: serviceName,
+                    priority: .normal
+                )
+            } catch {
+                APILogger.log("Rate limit exceeded, returning mock data", type: .warning)
+                return filterMockProducts(query: query)
+            }
+        }
+        
         // For testing without real API call, use mock data
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("MOCK_API") {
             APILogger.log("Using mock data for search query: \"\(query)\"")
             try await Task.sleep(nanoseconds: 500_000_000)
             
-            if !query.isEmpty {
-                let filteredProducts = mockProducts.filter { product in
-                    product.name.lowercased().contains(query.lowercased()) ||
-                    (product.productDescription?.lowercased().contains(query.lowercased()) ?? false) ||
-                    product.brand.lowercased().contains(query.lowercased())
-                }
-                APILogger.log("Mock search returned \(filteredProducts.count) results", type: .success)
-                return filteredProducts
-            }
-            APILogger.log("Mock search returned all \(mockProducts.count) mock products", type: .success)
-            return mockProducts
+            let filteredProducts = filterMockProducts(query: query)
+            APILogger.log("Mock search returned \(filteredProducts.count) results", type: .success)
+            return filteredProducts
         }
         #endif
         
@@ -261,6 +302,17 @@ class EbayAPIService: RetailerAPIService {
                     
                     let products = itemSummaries.map { mapToProductItemDTO($0) }
                     APILogger.log("Search successful: Found \(products.count) products", type: .success)
+                    
+                    // Save to modern cache if enabled
+                    if useModernCache {
+                        await modernCacheManager.set(
+                            key: cacheKey,
+                            value: products,
+                            ttl: 3600 // 1 hour
+                        )
+                        APILogger.log("Cached search results in modern cache", type: .info)
+                    }
+                    
                     return products
                 } catch {
                     APILogger.log("Failed to decode search response: \(error)", type: .error)

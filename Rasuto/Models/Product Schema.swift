@@ -6,48 +6,40 @@ import SwiftData
 @Model
 final class ProductItem {
     
-    // Core Product Information
-    var id: UUID                  // Using UUID from original model
-    var name: String              // Product name
-    var productDescription: String // Renamed from description
-    var price: Double?            // Made optional like in original model
-    var originalPrice: Double?    // Original price (for discount calculation)
-    var currency: String?         // Made optional like in original model
-    var url: URL?                 // Using URL type from original model
+    var id: UUID
+    var name: String
+    var productDescription: String
+    var price: Double?
+    var originalPrice: Double?
+    var currency: String?
+    var url: URL?
     
-    // Product Metadata
-    var brand: String             // Brand name
-    var source: String            // Source retailer (renamed from retailer)
-    var sourceId: String          // ID used by the source API
-    var category: String          // Product category
-    var subcategory: String?      // Product subcategory
+    var brand: String
+    var source: String
+    var sourceId: String
+    var category: String
+    var subcategory: String?
     
-    // Media
-    var imageUrls: [String]       // Array of image URLs
-    var imageURL: URL?            // From original model
-    var thumbnailUrl: String?     // Primary thumbnail image URL
+    var imageUrls: [String]
+    var imageURL: URL?
+    var thumbnailUrl: String?
     
-    // Inventory Information
-    var isInStock: Bool           // Using naming from original model
-    var stockQuantity: Int?       // Available quantity if provided
-    var availability: String?     // Availability status text
+    var isInStock: Bool
+    var stockQuantity: Int?
+    var availability: String?
     
-    // Specifications
-    @Relationship(deleteRule: .cascade) var specifications: [ProductSpecification]? // Technical specs
-    @Relationship(deleteRule: .cascade) var variants: [ProductVariant]?            // Color/size variants
+    var rating: Double?
+    var reviewCount: Int?
     
-    // Reviews and Ratings
-    var rating: Double?           // Average star rating (e.g., 4.5)
-    var reviewCount: Int?         // Number of reviews
+    var priceHistory: [PricePoint]?
+    var lastChecked: Date?
+    var addedDate: Date
+    var isFavorite: Bool
+    var isTracked: Bool
     
-    // Pricing and Tracking
-    var priceHistory: [PricePoint]? // Historical price points
-    var lastChecked: Date?        // From original model
-    var addedDate: Date           // When product was added (from original model)
-    var isFavorite: Bool = false  // User favorite flag
-    var isTracked: Bool = false   // Price tracking flag
-    
-    // MARK: - Initialization
+    var syncStatus: Int
+    var lastSyncDate: Date?
+    var cloudKitRecordID: String?
     
     init(
         name: String,
@@ -56,7 +48,7 @@ final class ProductItem {
         currency: String? = "USD",
         url: URL? = nil,
         brand: String = "",
-        source: String, // Required retailer name
+        source: String,
         sourceId: String = "",
         category: String = "",
         imageURL: URL? = nil,
@@ -77,19 +69,16 @@ final class ProductItem {
         self.addedDate = Date()
         self.lastChecked = Date()
         self.imageUrls = []
+        self.isFavorite = false
+        self.isTracked = false
+        self.syncStatus = 0
     }
 }
 
-// MARK: - Product Specification Model
-
 @Model
-
 final class ProductSpecification {
-    var name: String      // Specification name (e.g., "Screen Size", "Material")
-    var value: String     // Specification value (e.g., "6.7 inches", "Cotton")
-    
-    // Relationship to parent
-    @Relationship(inverse: \ProductItem.specifications) var product: ProductItem?
+    var name: String
+    var value: String
     
     init(name: String, value: String) {
         self.name = name
@@ -97,20 +86,14 @@ final class ProductSpecification {
     }
 }
 
-// MARK: - Product Variant Model
-
 @Model
-
 final class ProductVariant {
-    var id: String           // Variant ID
-    var name: String         // Variant name (e.g., "Red", "Medium")
-    var type: String         // Variant type (e.g., "Color", "Size")
-    var price: Double?       // Price difference or specific price
-    var isAvailable: Bool    // Whether variant is available
-    var imageUrl: String?    // Image URL for this variant
-    
-    // Relationship to parent
-    @Relationship(inverse: \ProductItem.specifications) var product: ProductItem?
+    var id: String
+    var name: String
+    var type: String
+    var price: Double?
+    var isAvailable: Bool
+    var imageUrl: String?
     
     init(id: String, name: String, type: String, isAvailable: Bool = true) {
         self.id = id
@@ -119,8 +102,6 @@ final class ProductVariant {
         self.isAvailable = isAvailable
     }
 }
-
-// MARK: - Price History Point
 
 struct PricePoint: Codable, Hashable, Identifiable {
     let id = UUID()
@@ -135,17 +116,13 @@ struct PricePoint: Codable, Hashable, Identifiable {
     }
 }
 
-// MARK: - Schema Configuration
+// MARK: - CloudKit Sync Status
 
-extension ModelConfiguration {
-    static var productSchema: ModelConfiguration {
-        let schema = ModelConfiguration(schema: Schema([
-            ProductItem.self,
-            ProductSpecification.self,
-            ProductVariant.self
-        ]))
-        return schema
-    }
+enum SyncStatus: Int, Codable, CaseIterable {
+    case pending = 0
+    case syncing = 1
+    case synced = 2
+    case failed = 3
 }
 
 // MARK: - Computed Properties
@@ -177,9 +154,21 @@ extension ProductItem {
         return productDescription
     }
     
-    // String ID for API compatibility
     var idString: String {
         return self.id.uuidString
+    }
+    
+    var currentSyncStatus: SyncStatus {
+        get { SyncStatus(rawValue: syncStatus) ?? .pending }
+        set { syncStatus = newValue.rawValue }
+    }
+    
+    var isAwaitingSync: Bool {
+        return currentSyncStatus == .pending || currentSyncStatus == .syncing
+    }
+    
+    var isSynced: Bool {
+        return currentSyncStatus == .synced
     }
 }
 

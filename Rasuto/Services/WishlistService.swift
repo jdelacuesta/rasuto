@@ -81,6 +81,7 @@ class WishlistService: ObservableObject {
         product.reviewCount = dto.reviewCount
         product.isFavorite = true
         product.isTracked = false
+        product.currentSyncStatus = .pending // Mark for CloudKit sync
         
         // Set image URLs
         if let imageUrls = dto.imageUrls {
@@ -114,9 +115,12 @@ class WishlistService: ObservableObject {
         }
         
         do {
-            // Simple approach: fetch all and filter
-            let allProducts = try context.fetch(FetchDescriptor<ProductItem>())
-            if let product = allProducts.first(where: { $0.id == productId }) {
+            // Optimized query to find specific product
+            let descriptor = FetchDescriptor<ProductItem>(
+                predicate: #Predicate { item in item.id == productId }
+            )
+            
+            if let product = try context.fetch(descriptor).first {
                 if product.isTracked {
                     // Keep item but remove from favorites
                     product.isFavorite = false
@@ -139,16 +143,71 @@ class WishlistService: ObservableObject {
         }
         
         do {
-            // Simple approach: fetch all and filter
-            let allProducts = try context.fetch(FetchDescriptor<ProductItem>())
-            if let product = allProducts.first(where: { $0.id == productId }) {
+            // Optimized query to find specific product
+            let descriptor = FetchDescriptor<ProductItem>(
+                predicate: #Predicate { item in item.id == productId }
+            )
+            
+            if let product = try context.fetch(descriptor).first {
                 product.isFavorite.toggle()
                 product.lastChecked = Date()
+                product.currentSyncStatus = .pending // Mark for CloudKit sync
                 try context.save()
                 await loadSavedItems()
             }
         } catch {
             errorMessage = "Failed to toggle favorite: \(error.localizedDescription)"
+        }
+    }
+    
+    // MARK: - Batch Operations
+    
+    func batchInsertProducts(_ products: [ProductItemDTO]) async {
+        guard let context = modelContext else {
+            errorMessage = "Database not available"
+            return
+        }
+        
+        do {
+            // Disable auto-save for batch operations
+            context.autosaveEnabled = false
+            defer { context.autosaveEnabled = true }
+            
+            for productDTO in products {
+                // Check if product already exists
+                let descriptor = FetchDescriptor<ProductItem>(
+                    predicate: #Predicate { item in
+                        item.sourceId == productDTO.sourceId && item.source == productDTO.source
+                    }
+                )
+                
+                let existingProducts = try context.fetch(descriptor)
+                if existingProducts.isEmpty {
+                    let product = createProductItem(from: productDTO)
+                    context.insert(product)
+                }
+            }
+            
+            try context.save()
+            loadSavedItems()
+        } catch {
+            errorMessage = "Failed to batch insert products: \(error.localizedDescription)"
+        }
+    }
+    
+    func loadProductsByCategory(_ category: String) -> [ProductItem] {
+        guard let context = modelContext else { return [] }
+        
+        do {
+            var descriptor = FetchDescriptor<ProductItem>(
+                predicate: #Predicate { item in item.category == category },
+                sortBy: [SortDescriptor(\.addedDate, order: .reverse)]
+            )
+            descriptor.fetchLimit = 50
+            
+            return try context.fetch(descriptor)
+        } catch {
+            return []
         }
     }
     
@@ -161,12 +220,14 @@ class WishlistService: ObservableObject {
         }
         
         do {
-            // Simple approach: fetch all and filter in memory
-            let allProducts = try context.fetch(FetchDescriptor<ProductItem>())
-            savedItems = allProducts
-                .filter { $0.isFavorite }
-                .sorted { ($0.lastChecked ?? Date.distantPast) > ($1.lastChecked ?? Date.distantPast) }
+            // Optimized query with predicate and sorting
+            var descriptor = FetchDescriptor<ProductItem>(
+                predicate: #Predicate { item in item.isFavorite == true },
+                sortBy: [SortDescriptor(\.lastChecked, order: .reverse)]
+            )
+            descriptor.fetchLimit = 100 // Limit for performance
             
+            savedItems = try context.fetch(descriptor)
             errorMessage = nil
         } catch {
             errorMessage = "Failed to load saved items: \(error.localizedDescription)"

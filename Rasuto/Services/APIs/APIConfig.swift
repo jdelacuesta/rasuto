@@ -246,10 +246,21 @@ struct APIConfig {
     }
     
     // Walmart API service instance
-    func createWalmartService() throws -> WalmartAPIService {
+    func createWalmartService() async throws -> WalmartAPIService {
         do {
             let apiKey = try APIKeyManager.shared.getAPIKey(for: Service.walmart)
-            return WalmartAPIService(apiKey: apiKey)
+            return await WalmartAPIService(apiKey: apiKey)
+        } catch {
+            throw APIError.authenticationFailed
+        }
+    }
+    
+    // MARK: - Walmart Price Tracker Factory
+    
+    func createWalmartPriceTracker() async throws -> WalmartPriceTracker {
+        do {
+            let service = try await createWalmartService()
+            return await WalmartPriceTracker(walmartService: service)
         } catch {
             throw APIError.authenticationFailed
         }
