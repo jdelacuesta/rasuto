@@ -12,7 +12,7 @@ import Combine
 class NLPSearchService {
     // MARK: - Properties
     
-    private let retailers: [RetailerAPIService]
+    private var retailers: [RetailerAPIService]
     private var cancellables = Set<AnyCancellable>()
     
     // Language detection
@@ -21,17 +21,30 @@ class NLPSearchService {
     // MARK: - Initialization
     
     init() {
-        // Initialize with available retailer services
+        // Initialize empty, services will be loaded asynchronously
+        self.retailers = []
+        
+        // Load services asynchronously
+        Task {
+            await loadRetailerServices()
+        }
+    }
+    
+    private func loadRetailerServices() async {
         do {
             let apiConfig = APIConfig()
             let bestBuyService = try apiConfig.createBestBuyService()
-            let walmartService = try apiConfig.createWalmartService()
+            let walmartService = try await apiConfig.createWalmartService()
             let ebayService = try apiConfig.createEbayService()
             
-            self.retailers = [bestBuyService, walmartService, ebayService]
+            await MainActor.run {
+                self.retailers = [bestBuyService, walmartService, ebayService]
+            }
         } catch {
             print("Failed to initialize retailer services: \(error)")
-            self.retailers = []
+            await MainActor.run {
+                self.retailers = []
+            }
         }
     }
     

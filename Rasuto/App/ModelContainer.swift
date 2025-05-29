@@ -22,14 +22,17 @@ class ModelContainerManager {
                 ProductVariant.self
             ])
             
-            // Create a configuration with persistent storage
+            // Create a configuration with persistent storage and CloudKit sync
             let modelConfiguration = ModelConfiguration(
                 schema: schema,
-                isStoredInMemoryOnly: false  // Enable persistent storage for wishlist functionality
+                isStoredInMemoryOnly: false,
+                allowsSave: true,
+                groupContainer: .automatic,
+                cloudKitDatabase: .automatic
             )
             
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print("Successfully created ModelContainer in memory")
+            print("Successfully created ModelContainer with CloudKit sync enabled")
         } catch {
             print("Failed to create ModelContainer: \(error)")
             container = nil

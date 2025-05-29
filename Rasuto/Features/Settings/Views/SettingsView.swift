@@ -44,6 +44,21 @@ struct SettingsView: View {
                     }
                 }
                 
+                // MARK: - Retailers Section
+                Section("Retailers") {
+                    NavigationLink {
+                        RetailerRequestView()
+                    } label: {
+                        Label("Request New Retailer", systemImage: "plus.app.fill")
+                    }
+                    
+                    NavigationLink {
+                        APIDebugHubView()
+                    } label: {
+                        Label("API Status", systemImage: "network")
+                    }
+                }
+                
                 // MARK: - Support Section
                 Section("Support") {
                     NavigationLink {

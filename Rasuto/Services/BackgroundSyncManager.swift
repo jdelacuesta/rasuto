@@ -26,6 +26,7 @@ class BackgroundSyncManager: ObservableObject {
     // Services
     private var bestBuyTracker: BestBuyPriceTracker
     private var ebayManager: EbayNotificationManager
+    private let cloudKitSyncManager = CloudKitSyncManager.shared
     
     // Sync intervals
     private let priceCheckInterval: TimeInterval = 3600 // 1 hour
@@ -163,6 +164,8 @@ class BackgroundSyncManager: ObservableObject {
         Task {
             do {
                 await syncNotifications()
+                // Also sync CloudKit changes
+                await cloudKitSyncManager.syncPendingChanges()
                 task.setTaskCompleted(success: true)
             } catch {
                 task.setTaskCompleted(success: false)
