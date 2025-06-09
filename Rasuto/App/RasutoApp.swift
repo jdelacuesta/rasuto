@@ -19,77 +19,156 @@ struct RasutoApp: App {
     @State private var appDelegateInitialized = false
     @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @StateObject private var networkMonitorProxy = NetworkMonitorProxy()
-    @StateObject private var ebayNotificationManager = EbayNotificationManager()
-    @StateObject private var bestBuyPriceTracker = createBestBuyPriceTracker()
+    // eBay integration provided via SerpAPI
+    // @StateObject private var bestBuyPriceTracker = createBestBuyPriceTracker() // DISABLED: Causing startup delays
     @Environment(\.scenePhase) private var scenePhase
-    
-    // Dark mode support
     @AppStorage("isDarkMode") private var isDarkMode = false
+    @State private var appState: AppFlowState = .splash
     
-    // Splash screen control
-    @State private var showSplashScreen = true
+    enum AppFlowState {
+        case splash
+        case onboarding
+        case main
+    }
+    
+    // Add immediate debug
+    private let debugMessage = {
+        print("🚀🚀🚀 RasutoApp struct is being initialized!")
+        return "initialized"
+    }()
     
     // MARK: - Initialization
     
     init() {
-        // Setup CloudKit
-        setupCloudKit()
+        print("🚀 RasutoApp init() called")
+        print("🔧 Initial app state: \(appState)")
         
-        // Initialize API keys during app launch
-        let apiConfig = APIConfig()
-        apiConfig.initializeAPIKeys()
-        apiConfig.initializeBestBuyAPI()
-        
-        // Setup appearance
+        // Only do essential UI setup in init() to avoid black screen
         setupAppearance()
+        initializeDarkModeFromSystem()
         
-        // Setup development environment in debug mode
-        #if DEBUG
-        setupDevelopmentEnvironment()
-        #endif
+        print("🔧 RasutoApp init() completed - UI ready")
+        
+        // Heavy initialization will be done on app appear
+        Self.scheduleBackgroundInitialization()
+    }
+    
+    // MARK: - Cache Warming
+    
+    private static func warmCacheForFirstLaunch() async {
+        print("🔥 CACHE WARMING: Checking if first launch needs live data pre-population...")
+        
+        // Check if we have any cached products
+        let persistentProducts = PersistentProductCache.shared.getAllProducts()
+        
+        if persistentProducts.isEmpty {
+            print("🆕 FIRST LAUNCH DETECTED: No cached products found - warming cache with live data...")
+            
+            // Create a temporary search manager to populate cache
+            let searchManager = UniversalSearchManager()
+            await searchManager.warmCacheWithLiveData()
+            
+        } else {
+            print("✅ CACHE ALREADY WARM: Found \(persistentProducts.count) cached products - no warming needed")
+        }
+    }
+    
+    // MARK: - Background Initialization
+    
+    private static func scheduleBackgroundInitialization() {
+        // Schedule initialization without capturing self
+        DispatchQueue.global(qos: .background).async {
+            Task {
+                await performBackgroundInitialization()
+            }
+        }
+    }
+    
+    private static func performBackgroundInitialization() async {
+        print("🔄 Starting lightweight background initialization...")
+        
+        // OPTIMIZED: Only essential initialization for faster startup
+        // Defer heavy API setup until actually needed
+        
+        // Allow live data for development while protecting quota (lightweight)
+        await QuotaProtectionManager.shared.disableDemoMode()
+        print("🚀 Live data enabled for testing - quota protection still active for excessive usage")
+        
+        // Cache warming for first launch - ensure live data shows immediately
+        await warmCacheForFirstLaunch()
+        
+        // Defer API initialization to when services are first accessed
+        DispatchQueue.global(qos: .utility).async {
+            let apiConfig = APIConfig()
+            apiConfig.initializeAPIKeys()
+            // Skip BestBuy API initialization - not needed
+            // apiConfig.initializeBestBuyAPI() // DISABLED
+            
+            // Apply eBay OAuth bypass for network reliability
+            // eBay OAuth bypass removed - using SerpAPI eBay integration
+            print("✅ Deferred API initialization completed")
+        }
+        
+        print("✅ Background initialization completed")
     }
     
     // MARK: - App Scene
     
     var body: some Scene {
         WindowGroup {
-            if showSplashScreen {
-                SplashScreenWrapper(showSplashScreen: $showSplashScreen)
-                    .preferredColorScheme(isDarkMode ? .dark : .light)
-            } else {
-                HomeView()
-                    .environmentObject(ebayNotificationManager)
-                    .environmentObject(bestBuyPriceTracker)
-                    .environmentObject(networkMonitorProxy)
-                    .overlay {
-                        if !NetworkMonitor.shared.isConnected {
-                            VStack {
-                                Spacer()
-                                HStack {
-                                    Image(systemName: "wifi.slash")
-                                    Text("No internet connection")
+            Group {
+                let _ = print("🚀 EVALUATING APP STATE: \(appState)")
+                
+                switch appState {
+                case .splash:
+                    let _ = print("✅ SHOWING SPLASH SCREEN")
+                    SplashScreenWrapper(appState: $appState)
+                    .onAppear {
+                        print("🔧 Splash screen wrapper appeared")
+                    }
+                    
+                case .onboarding:
+                    let _ = print("✅ SHOWING ONBOARDING")
+                    RasutoOnboardingView(isPresented: Binding(
+                        get: { appState == .onboarding },
+                        set: { isPresented in
+                            if !isPresented {
+                                print("🎬 Onboarding dismissed - transitioning to main")
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    appState = .main
                                 }
-                                .padding()
-                                .background(Color.red.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                                .padding()
-                                Spacer().frame(height: 50)
                             }
                         }
-                    }
-                    .preferredColorScheme(isDarkMode ? .dark : .light)
+                    ))
                     .onAppear {
-                        // Configure app theme on launch
-                        configureAppTheme()
-                        print("App launched with Home View")
+                        print("🎬 Onboarding appeared!")
                     }
-                    .onChange(of: scenePhase) { newPhase in
-                        if newPhase == .active {
-                            // Check for credentials and prompt to set them up if needed
-                            checkAPICredentials()
+                    
+                case .main:
+                    let _ = print("✅ SHOWING SEARCH VIEW")
+                    SearchView()
+                        // All integrations via SerpAPI - no separate environment objects needed
+                        .environmentObject(networkMonitorProxy)
+                        .onAppear {
+                            print("🏠 SearchView appeared - main app flow")
+                            // Apply user's preferred color scheme
+                            applyStoredColorScheme()
                         }
-                    }
+                }
+            }
+            .modelContainer(for: [ProductItem.self, Collection.self, ProductSpecification.self, ProductVariant.self, TrackedProductModel.self, NotificationPreferences.self])
+            .onChange(of: scenePhase) { newPhase in
+                switch newPhase {
+                case .active:
+                    print("📱 App became active - applying user preferences")
+                    applyStoredColorScheme()
+                case .inactive:
+                    print("📱 App became inactive")
+                case .background:
+                    print("📱 App went to background")
+                @unknown default:
+                    break
+                }
             }
         }
     }
@@ -101,40 +180,41 @@ struct RasutoApp: App {
         UINavigationBar.appearance().tintColor = .systemBlue
     }
     
-    // Helper method to create BestBuyPriceTracker
-    private static func createBestBuyPriceTracker() -> BestBuyPriceTracker {
-        do {
-            let apiConfig = APIConfig()
-            let service = try apiConfig.createBestBuyService()
-            return BestBuyPriceTracker(bestBuyService: service)
-        } catch {
-            print("Failed to create BestBuyPriceTracker: \(error)")
-            // Return a mock tracker for now
-            let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
-            return BestBuyPriceTracker(bestBuyService: mockService)
+    private func initializeDarkModeFromSystem() {
+        print("🌓 Detecting system color scheme preference...")
+        
+        // Check if user has already set a preference manually
+        let hasExistingPreference = UserDefaults.standard.object(forKey: "isDarkMode") != nil
+        
+        if !hasExistingPreference {
+            // First time launch - detect system preference
+            let systemIsDark = UITraitCollection.current.userInterfaceStyle == .dark
+            print("🌓 System preference detected: \(systemIsDark ? "Dark" : "Light") mode")
+            
+            UserDefaults.standard.set(systemIsDark, forKey: "isDarkMode")
+            isDarkMode = systemIsDark
+        } else {
+            // User has existing preference - respect it
+            let userPreference = UserDefaults.standard.bool(forKey: "isDarkMode")
+            isDarkMode = userPreference
+            print("🌓 Using stored user preference: \(userPreference ? "Dark" : "Light") mode")
         }
+        
+        // Apply the determined color scheme
+        applyColorScheme(isDark: isDarkMode)
     }
     
-    // MARK: - CloudKit Setup
-    
-    private func setupCloudKit() {
-        let container = CKContainer(identifier: "iCloud.com.Rasuto")
-        container.privateCloudDatabase.fetchAllRecordZones { zones, error in
-            if let error = error {
-                print("CloudKit setup failed: \(error)")
-            } else {
-                print("CloudKit setup success. Zones: \(zones ?? [])")
-            }
-        }
+    private func applyStoredColorScheme() {
+        let userDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+        applyColorScheme(isDark: userDarkMode)
     }
     
-    // MARK: - Theme Configuration
-    
-    private func configureAppTheme() {
+    private func applyColorScheme(isDark: Bool) {
         Task { @MainActor in
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.windows.forEach { window in
-                    window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
+                    window.overrideUserInterfaceStyle = isDark ? .dark : .light
+                    print("🌓 Applied \(isDark ? "dark" : "light") mode to window")
                 }
             }
         }
@@ -142,22 +222,25 @@ struct RasutoApp: App {
     
     // MARK: - API Configuration
     
-    private func setupDevelopmentEnvironment() {
-        // Setup test API keys
-        let apiConfig = APIConfig()
-        apiConfig.setupTestKeys()
-    }
-    
     private func checkAPICredentials() {
         Task {
-            // Check if eBay credentials are set up
-            let hasEbayKey = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.ebay)
-            let hasEbayClientID = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.ebayClientID)
-            let hasEbayClientSecret = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.ebayClientSecret)
+            // Check if essential API credentials are set up
+            let hasSerpAPI = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.serpAPI)
+            let hasAxesso = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.axessoAmazon)
+            let hasOxylabs = APIKeyManager.shared.hasAPIKey(for: APIConfig.Service.oxylabs)
             
-            if !hasEbayKey || !hasEbayClientID || !hasEbayClientSecret {
-                // In a real app, you would show a settings screen where the user can enter their credentials
-                print("eBay API credentials not found. Please set them up.")
+            if !hasSerpAPI {
+                print("⚠️ SerpAPI credentials missing - primary search layer unavailable")
+            }
+            if !hasAxesso {
+                print("⚠️ Axesso credentials missing - Amazon fallback unavailable")
+            }
+            if !hasOxylabs {
+                print("⚠️ Oxylabs credentials missing - scraper fallback unavailable")
+            }
+            
+            if hasSerpAPI && hasAxesso && hasOxylabs {
+                print("✅ All API layers configured: SerpAPI (primary) + Axesso (Amazon) + Oxylabs (fallback)")
             }
         }
     }
@@ -209,7 +292,7 @@ extension Notification.Name {
 // MARK: - Splash Screen Wrapper
 
 struct SplashScreenWrapper: View {
-    @Binding var showSplashScreen: Bool
+    @Binding var appState: RasutoApp.AppFlowState
     @State private var scale = 0.8
     @State private var opacity = 0.0
     @State private var showName = false
@@ -236,30 +319,29 @@ struct SplashScreenWrapper: View {
             }
         }
         .onAppear {
-            // Show name with spring animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                showName = true
-                withAnimation(.spring(response: 0.8, dampingFraction: 0.6, blendDuration: 0)) {
-                    scale = 1.0
-                    opacity = 1.0
-                }
+            // Show name immediately with spring animation
+            showName = true
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0)) {
+                scale = 1.0
+                opacity = 1.0
             }
             
-            // Show tagline after name animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                withAnimation(.easeOut(duration: 0.6)) {
+            // Show tagline after brief delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                withAnimation(.easeOut(duration: 0.4)) {
                     showTagline = true
                 }
             }
             
-            // Hide splash screen with fade out
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
-                withAnimation(.easeInOut(duration: 0.6)) {
+            // Hide splash screen - reduced timing for faster loading
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                withAnimation(.easeInOut(duration: 0.4)) {
                     opacity = 0.0
                 }
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    showSplashScreen = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    print("🎬 Splash completed - transitioning to onboarding")
+                    appState = .onboarding
                 }
             }
         }

@@ -74,3 +74,6 @@ Rasuto.xcodeproj/xcshareddata/xcschemes/
 # OAuth configuration files with secrets
 Rasuto/Services/APIs/Retailers/Ebay/ebay-auth-debug.js
 Rasuto/Services/APIs/Retailers/Ebay/ebay-oauth-config.js
+
+# API Keys for mentor evaluation (exclude from GitHub)
+API_KEYS.md

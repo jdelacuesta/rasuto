@@ -131,11 +131,11 @@ actor UnifiedCacheManager {
     
     // MARK: - Cache Statistics
     
-    func getStats() async -> CacheStats {
+    func getStats() async -> UnifiedCacheStats {
         let memoryCount = memoryCache.totalCostLimit
         let diskStats = await diskCache.getStats()
         
-        return CacheStats(
+        return UnifiedCacheStats(
             memoryCount: memoryCount,
             diskCount: diskStats.entryCount,
             memorySize: memoryCache.totalCostLimit,
@@ -295,7 +295,7 @@ struct CacheMetadata: Codable {
     let size: Int
 }
 
-struct CacheStats {
+struct UnifiedCacheStats {
     let memoryCount: Int
     let diskCount: Int
     let memorySize: Int

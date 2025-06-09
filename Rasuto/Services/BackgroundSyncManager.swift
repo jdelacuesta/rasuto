@@ -24,8 +24,8 @@ class BackgroundSyncManager: ObservableObject {
     let notificationPublisher = PassthroughSubject<NotificationItem, Never>()
     
     // Services
-    private var bestBuyTracker: BestBuyPriceTracker
-    private var ebayManager: EbayNotificationManager
+    // private var bestBuyTracker: BestBuyPriceTracker // REMOVED
+    // eBay integration provided via SerpAPI
     private let cloudKitSyncManager = CloudKitSyncManager.shared
     
     // Sync intervals
@@ -35,23 +35,9 @@ class BackgroundSyncManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     private init() {
-        // Initialize services
-        do {
-            let apiConfig = APIConfig()
-            if let bestBuyService = try? apiConfig.createBestBuyService() {
-                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: bestBuyService)
-            } else {
-                // Fallback to mock service
-                let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
-                self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
-            }
-        } catch {
-            // Fallback to mock service
-            let mockService = BestBuyAPIService(apiKey: "MOCK_API_KEY")
-            self.bestBuyTracker = BestBuyPriceTracker(bestBuyService: mockService)
-        }
+        // Initialize services - All BestBuy services removed for production
         
-        self.ebayManager = EbayNotificationManager()
+        // eBay integration provided via SerpAPI
         
         setupBackgroundTasks()
         setupNotificationObservers()
@@ -77,29 +63,7 @@ class BackgroundSyncManager: ObservableObject {
     }
     
     private func setupNotificationObservers() {
-        // Observe BestBuy price changes
-        bestBuyTracker.$trackedItems
-            .sink { [weak self] alerts in
-                // Convert BestBuyPriceAlert to ProductItem for processing
-                let items = alerts.map { alert in
-                    let item = ProductItem(
-                        name: alert.name,
-                        productDescription: "",
-                        price: alert.currentPrice,
-                        currency: "USD",
-                        url: nil,
-                        brand: "",
-                        source: "BestBuy",
-                        sourceId: alert.sku,
-                        category: "",
-                        isInStock: true
-                    )
-                    item.originalPrice = alert.initialPrice
-                    return item
-                }
-                self?.checkForPriceChanges(items: items)
-            }
-            .store(in: &cancellables)
+        // REMOVED: BestBuy price tracking functionality
         
         // Observe eBay notifications
         // This would connect to actual webhook events in production
@@ -176,14 +140,21 @@ class BackgroundSyncManager: ObservableObject {
     // MARK: - Sync Operations
     
     func performPriceCheck() {
-        // Check BestBuy prices
         Task {
-            await bestBuyTracker.refreshPrices()
-        }
-        
-        // Check eBay prices
-        Task {
-            await ebayManager.refreshTrackedItems()
+            // QUOTA PROTECTION: Check if we can make API requests
+            if await shouldBlockAPIRequest(for: "background_price_check") {
+                print("🛡️ Background price check blocked by quota protection")
+                return
+            }
+            
+            // Check BestBuy prices
+            // await bestBuyTracker.refreshPrices() // REMOVED
+            
+            // Check eBay prices  
+            // await ebayManager?.refreshTrackedItems() // Commented out - EbayNotificationManager disabled
+            
+            // Record API usage
+            await QuotaProtectionManager.shared.recordAPIRequest()
         }
     }
     
@@ -201,13 +172,17 @@ class BackgroundSyncManager: ObservableObject {
     }
     
     private func syncBestBuyNotifications() async {
+        // QUOTA PROTECTION: Disabled to preserve API quota
         // Simulate fetching notifications from BestBuy
         // In production, this would make actual API calls
+        print("🛡️ BestBuy notification sync disabled for quota protection")
     }
     
     private func syncEbayNotifications() async {
+        // QUOTA PROTECTION: Disabled to preserve API quota
         // Simulate fetching notifications from eBay
         // In production, this would check webhook events
+        print("🛡️ eBay notification sync disabled for quota protection")
     }
     
     // MARK: - Price Change Detection

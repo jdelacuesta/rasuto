@@ -32,13 +32,13 @@ struct SettingsView: View {
                 // MARK: - Notifications Section
                 Section("Notifications") {
                     NavigationLink {
-                        Text("Alert Settings View")
+                        NotificationSettingsView()
                     } label: {
                         Label("Alert Settings", systemImage: "bell.fill")
                     }
                     
                     NavigationLink {
-                        Text("Frequency View")
+                        FrequencySettingsView()
                     } label: {
                         Label("Frequency", systemImage: "clock.fill")
                     }
@@ -53,9 +53,19 @@ struct SettingsView: View {
                     }
                     
                     NavigationLink {
-                        APIDebugHubView()
+                        APIStatusView()
                     } label: {
                         Label("API Status", systemImage: "network")
+                    }
+                    
+                    NavigationLink {
+                        QuotaProtectionSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Quota Protection", systemImage: "shield.checkered")
+                            Spacer()
+                            QuotaStatusMiniBanner()
+                        }
                     }
                 }
                 
@@ -72,6 +82,8 @@ struct SettingsView: View {
                     } label: {
                         Label("Rate Us", systemImage: "star.fill")
                     }
+                    
+                    // Debug panel removed for production
                     
                     // Version information
                     HStack {
@@ -110,13 +122,17 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            // Reduce spacing between sections
-            .environment(\.defaultMinListRowHeight, 40) // Reduce default row height
-            .environment(\.defaultMinListHeaderHeight, 25) // Reduce section header height
-            .listStyle(InsetGroupedListStyle()) // More compact list style
+            .listStyle(InsetGroupedListStyle())
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Add bottom padding for better scrolling
+                Color.clear.frame(height: 100)
+            }
             .onAppear {
-                // Ensure the toggle is in sync with system
-                isDarkMode = colorScheme == .dark
+                // Always enforce the current setting when Settings view appears
+                print("⚙️ Settings appeared - isDarkMode: \(isDarkMode)")
+                setAppearance(isDark: isDarkMode)
             }
         }
     }
@@ -162,6 +178,43 @@ func configureAppTheme() {
         windowScene?.windows.forEach { window in
             window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
         }
+    }
+}
+
+// MARK: - API Status View
+
+struct APIStatusView: View {
+    private let apiConfig = APIConfig()
+    
+    var body: some View {
+        List {
+            Section("SerpAPI + Fallback Architecture") {
+                HStack {
+                    Text("SerpAPI")
+                    Spacer()
+                    Text("Primary")
+                        .foregroundColor(.green)
+                }
+                HStack {
+                    Text("Axesso Amazon")
+                    Spacer()
+                    Text("Fallback")
+                        .foregroundColor(.orange)
+                }
+                HStack {
+                    Text("Oxylabs")
+                    Spacer()
+                    Text("Universal")
+                        .foregroundColor(.blue)
+                }
+            }
+            
+            Section("Status") {
+                Text("All services are integrated via APIConfig")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .navigationTitle("API Status")
     }
 }
 

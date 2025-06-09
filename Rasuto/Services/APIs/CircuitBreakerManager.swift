@@ -50,32 +50,32 @@ actor CircuitBreakerManager {
     
     func canExecute(service: String) async -> Bool {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        return circuitBreaker.canExecute()
+        return await circuitBreaker.canExecute()
     }
     
     func recordSuccess(service: String) async {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        circuitBreaker.recordSuccess()
+        await circuitBreaker.recordSuccess()
     }
     
     func recordFailure(service: String) async {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        circuitBreaker.recordFailure()
+        await circuitBreaker.recordFailure()
     }
     
     func getState(service: String) async -> CircuitBreakerState {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        return circuitBreaker.state
+        return await circuitBreaker.state
     }
     
     func getStats(service: String) async -> CircuitBreakerStats {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        return circuitBreaker.getStats()
+        return await circuitBreaker.getStats()
     }
     
     func reset(service: String) async {
         let circuitBreaker = getOrCreateCircuitBreaker(for: service)
-        circuitBreaker.reset()
+        await circuitBreaker.reset()
         print("🔄 Circuit breaker reset for \(service)")
     }
     
@@ -108,7 +108,7 @@ actor CircuitBreakerManager {
 
 // MARK: - Circuit Breaker
 
-class CircuitBreaker {
+actor CircuitBreaker {
     
     // MARK: - Properties
     
@@ -118,6 +118,7 @@ class CircuitBreaker {
     private var failureCount = 0
     private var lastFailureTime: Date?
     private var halfOpenSuccessCount = 0
+    private var isTestingRecovery = false // Prevent multiple half-open requests
     
     private(set) var state: CircuitBreakerState = .closed
     
@@ -137,18 +138,22 @@ class CircuitBreaker {
             
         case .open:
             // Check if we should transition to half-open
-            if shouldTransitionToHalfOpen() {
+            if shouldTransitionToHalfOpen() && !isTestingRecovery {
                 transitionToHalfOpen()
+                isTestingRecovery = true
                 return true
             }
             return false
             
         case .halfOpen:
-            return halfOpenSuccessCount < config.halfOpenMaxRequests
+            // Only allow one request at a time in half-open state
+            return !isTestingRecovery && halfOpenSuccessCount < config.halfOpenMaxRequests
         }
     }
     
     func recordSuccess() {
+        isTestingRecovery = false // Reset testing flag
+        
         switch state {
         case .closed:
             // Reset failure count on success
@@ -172,6 +177,8 @@ class CircuitBreaker {
     }
     
     func recordFailure() {
+        isTestingRecovery = false // Reset testing flag
+        
         switch state {
         case .closed:
             failureCount += 1
@@ -197,6 +204,7 @@ class CircuitBreaker {
         failureCount = 0
         lastFailureTime = nil
         halfOpenSuccessCount = 0
+        isTestingRecovery = false
         state = .closed
     }
     
@@ -222,6 +230,7 @@ class CircuitBreaker {
         state = .open
         lastFailureTime = Date()
         halfOpenSuccessCount = 0
+        isTestingRecovery = false
         print("🔴 Circuit breaker OPEN for \(serviceName)")
     }
     
@@ -236,6 +245,7 @@ class CircuitBreaker {
         failureCount = 0
         lastFailureTime = nil
         halfOpenSuccessCount = 0
+        isTestingRecovery = false
         print("🟢 Circuit breaker CLOSED for \(serviceName)")
     }
 }

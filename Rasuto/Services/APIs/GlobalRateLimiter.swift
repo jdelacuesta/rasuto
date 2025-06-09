@@ -38,6 +38,12 @@ actor GlobalRateLimiter {
             requestsPerMinute: 50,
             requestsPerHour: 800,
             burstLimit: 8
+        ),
+        "serpapi": RateLimitConfig(
+            requestsPerSecond: 1,
+            requestsPerMinute: 10,
+            requestsPerHour: 100,
+            burstLimit: 2
         )
     ]
     

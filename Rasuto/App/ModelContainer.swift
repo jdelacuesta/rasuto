@@ -22,7 +22,7 @@ class ModelContainerManager {
                 ProductVariant.self
             ])
             
-            // Create a configuration with persistent storage and CloudKit sync
+            // Configuration with persistent storage and CloudKit sync
             let modelConfiguration = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false,

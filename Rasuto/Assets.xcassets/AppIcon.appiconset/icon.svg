@@ -1,0 +1,8 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black rounded rectangle background with iOS app icon corner radius -->
+  <rect width="1024" height="1024" rx="229" ry="229" fill="#000000"/>
+  
+  <!-- White "R" letter - positioned and sized to match TopNavBar proportions -->
+  <text x="512" y="640" font-family="-apple-system, SF Pro Display, system-ui, sans-serif" 
+        font-size="599" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">R</text>
+</svg>

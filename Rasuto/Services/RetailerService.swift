@@ -228,24 +228,15 @@ final class RetailerServiceManager: ObservableObject {
         for retailer in activeRetailers {
             switch retailer.id {
             case "bestbuy":
-                do {
-                    let service = try apiConfig.createBestBuyService()
-                    apiServices[retailer.id] = service
-                } catch {
-                    print("Failed to initialize Best Buy service: \(error)")
-                }
-                
-            case "walmart":
-                let apiKey = SecretKeys.walmartApiKey
-                let service = await WalmartAPIService(apiKey: apiKey)
-                apiServices[retailer.id] = service
+                // BestBuy service removed - now provided via SerpAPI
+                break
                 
             case "ebay":
                 do {
-                    let service = try apiConfig.createEbayService()
+                    let service = try apiConfig.createSerpAPIEbayService()
                     apiServices[retailer.id] = service
                 } catch {
-                    print("Failed to initialize eBay service: \(error)")
+                    print("Failed to initialize eBay SerpAPI service: \(error)")
                 }
                 
             default:
@@ -271,24 +262,15 @@ final class RetailerServiceManager: ObservableObject {
         // Initialize the service if not already loaded
         switch retailerId {
         case "bestbuy":
-            do {
-                let service = try apiConfig.createBestBuyService()
-                apiServices[retailer.id] = service
-            } catch {
-                print("Failed to preload Best Buy service: \(error)")
-            }
-            
-        case "walmart":
-            let apiKey = SecretKeys.walmartApiKey
-            let service = await WalmartAPIService(apiKey: apiKey)
-            apiServices[retailer.id] = service
+            // BestBuy service removed - now provided via SerpAPI
+            break
             
         case "ebay":
             do {
-                let service = try apiConfig.createEbayService()
+                let service = try apiConfig.createSerpAPIEbayService()
                 apiServices[retailer.id] = service
             } catch {
-                print("Failed to preload eBay service: \(error)")
+                print("Failed to preload eBay SerpAPI service: \(error)")
             }
             
         default:

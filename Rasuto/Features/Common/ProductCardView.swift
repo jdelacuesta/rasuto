@@ -9,19 +9,25 @@ import SwiftUI
 
 struct ProductCardView: View {
     let product: ProductItem
-    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
-    @EnvironmentObject private var ebayManager: EbayNotificationManager
+    // @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker // REMOVED
+    // @EnvironmentObject private var ebayManager: EbayNotificationManager // Commented out - EbayNotificationManager disabled
+    @ObservedObject private var wishlistService = WishlistService.shared
+    @StateObject private var trackingService = ProductTrackingService.shared
     
     @State private var isHeartAnimating = false
     @State private var isTrackAnimating = false
     @State private var showingTrackingAlert = false
+    @State private var showingSaveAlert = false
+    
+    // FIX: Use local state for immediate UI updates, sync with service
+    @State private var isProductSaved = false
     
     var cardWidth: CGFloat = 160
     var cardHeight: CGFloat = 240
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Product Image with overlay buttons
+            // Product Image with overlay buttons - Fixed height
             ZStack(alignment: .topTrailing) {
                 // Product Image
                 AsyncImage(url: URL(string: product.imageUrl)) { phase in
@@ -60,9 +66,9 @@ struct ProductCardView: View {
                     Button(action: {
                         toggleTracking()
                     }) {
-                        Image(systemName: product.isTracked ? "bell.fill" : "bell")
+                        Image(systemName: trackingService.isTracking(product) ? "bell.fill" : "bell")
                             .font(.system(size: 16))
-                            .foregroundColor(product.isTracked ? .orange : .white)
+                            .foregroundColor(trackingService.isTracking(product) ? .orange : .white)
                             .padding(8)
                             .background(
                                 Circle()
@@ -77,9 +83,9 @@ struct ProductCardView: View {
                     Button(action: {
                         toggleFavorite()
                     }) {
-                        Image(systemName: product.isFavorite ? "heart.fill" : "heart")
+                        Image(systemName: isProductSaved ? "heart.fill" : "heart")
                             .font(.system(size: 16))
-                            .foregroundColor(product.isFavorite ? .red : .white)
+                            .foregroundColor(isProductSaved ? .red : .white)
                             .padding(8)
                             .background(
                                 Circle()
@@ -95,32 +101,32 @@ struct ProductCardView: View {
             
             // Product Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(product.name)
+                Text(cleanProductTitle(product.name, brand: product.brand))
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 
-                HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("$\(product.currentPrice, specifier: "%.2f")")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     
                     if let originalPrice = product.originalPrice,
                        originalPrice > product.currentPrice {
                         Text("$\(originalPrice, specifier: "%.2f")")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                             .strikethrough()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                 }
                 
                 // Store Info
                 HStack(spacing: 4) {
-                    Image(systemName: storeIcon(for: product.store))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    
-                    Text(product.store.capitalized)
+                    Text(RetailerType.displayName(for: product.source))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                     
@@ -137,17 +143,31 @@ struct ProductCardView: View {
         .alert("Price Tracking", isPresented: $showingTrackingAlert) {
             Button("OK") { }
         } message: {
-            Text(product.isTracked ? 
+            Text(trackingService.isTracking(product) ? 
                  "You'll be notified when the price drops!" : 
                  "Price tracking has been disabled.")
+        }
+        .alert("Saved to Wishlist", isPresented: $showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text("'\(product.name)' has been added to your saved items!")
+        }
+        .onAppear {
+            // Initialize local state from service
+            isProductSaved = wishlistService.savedItems.contains { savedItem in
+                savedItem.sourceId == product.sourceId && savedItem.source == product.source
+            }
         }
     }
     
     // MARK: - Helper Functions
     
     private func toggleFavorite() {
+        // FIX: Update local state immediately for instant UI response
+        let wasCurrentlySaved = isProductSaved
+        isProductSaved.toggle()
+        
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-            product.isFavorite.toggle()
             isHeartAnimating = true
         }
         
@@ -155,15 +175,38 @@ struct ProductCardView: View {
             isHeartAnimating = false
         }
         
-        // Save to wishlist if needed
-        if product.isFavorite {
-            // Add to wishlist logic here
+        // Then sync with service in background
+        Task {
+            print("🔄 HEART TAPPED: Product \(product.name), Was Saved: \(wasCurrentlySaved), Now: \(isProductSaved)")
+            
+            if wasCurrentlySaved {
+                // Product was saved, so remove it
+                if let savedProduct = wishlistService.savedItems.first(where: { 
+                    $0.sourceId == product.sourceId && $0.source == product.source 
+                }) {
+                    print("🗑️ REMOVING: Found saved product with ID \(savedProduct.id)")
+                    await wishlistService.removeFromWishlist(savedProduct.id)
+                    print("✅ REMOVED: Product removed from wishlist")
+                }
+            } else {
+                // Product was not saved, so add it
+                print("💾 SAVING: Converting product to DTO for save...")
+                let productDTO = ProductItemDTO.from(product)
+                print("💾 SAVING: DTO created - Name: \(productDTO.name), Source: \(productDTO.source), SourceId: \(productDTO.sourceId)")
+                
+                await wishlistService.saveToWishlist(from: productDTO)
+                print("✅ SAVED: Save operation completed")
+                
+                // Show success notification after a brief delay so heart turns red first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showingSaveAlert = true
+                }
+            }
         }
     }
     
     private func toggleTracking() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-            product.isTracked.toggle()
             isTrackAnimating = true
         }
         
@@ -171,139 +214,141 @@ struct ProductCardView: View {
             isTrackAnimating = false
         }
         
-        // Connect to tracking services
-        if product.isTracked {
-            startTracking()
+        // Use ProductTrackingService for universal tracking
+        if trackingService.isTracking(product) {
+            trackingService.stopTracking(product)
         } else {
-            stopTracking()
+            trackingService.startTracking(product)
         }
         
         showingTrackingAlert = true
     }
     
-    private func startTracking() {
-        switch product.store.lowercased() {
-        case "bestbuy":
-            let productInfo = BestBuyProductInfo(
-                sku: product.idString,
-                name: product.name,
-                regularPrice: product.originalPrice ?? product.price ?? 0,
-                salePrice: product.price,
-                onSale: false,
-                image: product.imageUrl,
-                url: product.url?.absoluteString ?? "",
-                description: product.productDescription
-            )
-            bestBuyTracker.startTracking(sku: product.idString, productInfo: productInfo)
-        case "ebay":
-            Task {
-                do {
-                    _ = try await ebayManager.trackItem(
-                        id: product.idString,
-                        name: product.name,
-                        currentPrice: product.price ?? 0,
-                        thumbnailUrl: product.imageUrl
-                    )
-                } catch {
-                    print("Failed to track eBay item: \(error)")
-                }
+    private func cleanProductTitle(_ title: String, brand: String) -> String {
+        // If brand exists and title is long, create a cleaner format
+        if !brand.isEmpty && title.count > 40 {
+            // Remove brand from title if it's already there
+            var cleanTitle = title
+            if title.lowercased().contains(brand.lowercased()) {
+                cleanTitle = title.replacingOccurrences(of: brand, with: "", options: .caseInsensitive)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             }
-        default:
-            break
+            
+            // Truncate if still too long
+            if cleanTitle.count > 35 {
+                cleanTitle = String(cleanTitle.prefix(35)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            return "\(brand) \(cleanTitle)"
         }
+        
+        // For shorter titles or no brand, just return original (truncated if needed)
+        if title.count > 50 {
+            return String(title.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        return title
     }
     
-    private func stopTracking() {
-        switch product.store.lowercased() {
-        case "bestbuy":
-            bestBuyTracker.stopTracking(for: product.idString)
-        case "ebay":
-            Task {
-                do {
-                    _ = try await ebayManager.untrackItem(id: product.idString)
-                } catch {
-                    print("Failed to untrack eBay item: \(error)")
-                }
-            }
-        default:
-            break
-        }
-    }
-    
-    private func storeIcon(for store: String) -> String {
-        switch store.lowercased() {
-        case "bestbuy":
-            return "cart.fill"
-        case "ebay":
-            return "tag.fill"
-        case "walmart":
-            return "bag.fill"
-        default:
-            return "storefront.fill"
-        }
-    }
 }
 
 // MARK: - Horizontal Card Variant
 struct ProductCardHorizontalView: View {
     let product: ProductItem
-    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
-    @EnvironmentObject private var ebayManager: EbayNotificationManager
+    // @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker // REMOVED
+    // @EnvironmentObject private var ebayManager: EbayNotificationManager // Commented out - EbayNotificationManager disabled
+    @ObservedObject private var wishlistService = WishlistService.shared
+    @StateObject private var trackingService = ProductTrackingService.shared
     
     @State private var isHeartAnimating = false
     @State private var isTrackAnimating = false
+    @State private var showingSaveAlert = false
+    
+    // FIX: Use local state for immediate UI updates, sync with service
+    @State private var isProductSavedHorizontal = false
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Product Image
-            AsyncImage(url: URL(string: product.imageUrl)) { phase in
-                switch phase {
-                case .empty:
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 80, height: 80)
-                        .overlay(ProgressView())
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                case .failure(_):
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(.gray)
-                        )
-                @unknown default:
-                    EmptyView()
+        HStack(alignment: .top, spacing: 12) {
+            // Product Image with Discount Badge
+            ZStack {
+                AsyncImage(url: URL(string: product.imageUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 80, height: 80)
+                            .overlay(ProgressView())
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    case .failure(_):
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemGray5))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(.gray)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                
+                // Discount Badge - better positioned
+                if let originalPrice = product.originalPrice,
+                   originalPrice > product.currentPrice {
+                    let discount = originalPrice - product.currentPrice
+                    let discountPercent = Int((discount / originalPrice) * 100)
+                    
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Text("-\(discountPercent)%")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.red)
+                                .cornerRadius(4)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)  // More inset from edges
                 }
             }
             
-            // Product Info
+            // Product Info - properly aligned
             VStack(alignment: .leading, spacing: 4) {
-                Text(product.name)
+                Text(cleanProductTitle(product.name, brand: product.brand))
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
-                HStack {
+                HStack(spacing: 4) {
                     Text("$\(product.currentPrice, specifier: "%.2f")")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     
                     if let originalPrice = product.originalPrice,
                        originalPrice > product.currentPrice {
                         Text("$\(originalPrice, specifier: "%.2f")")
-                            .font(.system(size: 14))
+                            .font(.system(size: 13))
                             .foregroundColor(.secondary)
                             .strikethrough()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
+                    
+                    Spacer()
                 }
                 
-                HStack {
-                    Label(product.store.capitalized, systemImage: storeIcon(for: product.store))
+                HStack(spacing: 4) {
+                    Text(RetailerType.displayName(for: product.source))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                     
@@ -312,6 +357,8 @@ struct ProductCardHorizontalView: View {
                             .font(.system(size: 12))
                             .foregroundColor(.orange)
                     }
+                    
+                    Spacer()
                 }
             }
             
@@ -320,16 +367,16 @@ struct ProductCardHorizontalView: View {
             // Action Buttons
             VStack(spacing: 12) {
                 Button(action: toggleTracking) {
-                    Image(systemName: product.isTracked ? "bell.fill" : "bell")
+                    Image(systemName: trackingService.isTracking(product) ? "bell.fill" : "bell")
                         .font(.system(size: 18))
-                        .foregroundColor(product.isTracked ? .orange : .gray)
+                        .foregroundColor(trackingService.isTracking(product) ? .orange : .gray)
                         .scaleEffect(isTrackAnimating ? 1.2 : 1.0)
                 }
                 
                 Button(action: toggleFavorite) {
-                    Image(systemName: product.isFavorite ? "heart.fill" : "heart")
+                    Image(systemName: isProductSavedHorizontal ? "heart.fill" : "heart")
                         .font(.system(size: 18))
-                        .foregroundColor(product.isFavorite ? .red : .gray)
+                        .foregroundColor(isProductSavedHorizontal ? .red : .gray)
                         .scaleEffect(isHeartAnimating ? 1.2 : 1.0)
                 }
             }
@@ -338,22 +385,64 @@ struct ProductCardHorizontalView: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .alert("Saved to Wishlist", isPresented: $showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text("'\(product.name)' has been added to your saved items!")
+        }
+        .onAppear {
+            // Initialize local state from service
+            isProductSavedHorizontal = wishlistService.savedItems.contains { savedItem in
+                savedItem.sourceId == product.sourceId && savedItem.source == product.source
+            }
+        }
     }
     
     private func toggleFavorite() {
+        // FIX: Update local state immediately for instant UI response
+        let wasCurrentlySaved = isProductSavedHorizontal
+        isProductSavedHorizontal.toggle()
+        
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-            product.isFavorite.toggle()
             isHeartAnimating = true
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isHeartAnimating = false
         }
+        
+        // Then sync with service in background
+        Task {
+            print("🔄 HEART TAPPED (HORIZONTAL): Product \(product.name), Was Saved: \(wasCurrentlySaved), Now: \(isProductSavedHorizontal)")
+            
+            if wasCurrentlySaved {
+                // Product was saved, so remove it
+                if let savedProduct = wishlistService.savedItems.first(where: { 
+                    $0.sourceId == product.sourceId && $0.source == product.source 
+                }) {
+                    print("🗑️ REMOVING (HORIZONTAL): Found saved product with ID \(savedProduct.id)")
+                    await wishlistService.removeFromWishlist(savedProduct.id)
+                    print("✅ REMOVED (HORIZONTAL): Product removed from wishlist")
+                }
+            } else {
+                // Product was not saved, so add it
+                print("💾 SAVING (HORIZONTAL): Converting product to DTO for save...")
+                let productDTO = ProductItemDTO.from(product)
+                print("💾 SAVING (HORIZONTAL): DTO created - Name: \(productDTO.name), Source: \(productDTO.source), SourceId: \(productDTO.sourceId)")
+                
+                await wishlistService.saveToWishlist(from: productDTO)
+                print("✅ SAVED (HORIZONTAL): Save operation completed")
+                
+                // Show success notification after a brief delay so heart turns red first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showingSaveAlert = true
+                }
+            }
+        }
     }
     
     private func toggleTracking() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-            product.isTracked.toggle()
             isTrackAnimating = true
         }
         
@@ -361,38 +450,38 @@ struct ProductCardHorizontalView: View {
             isTrackAnimating = false
         }
         
-        // Connect to tracking services
-        if product.isTracked {
-            switch product.store.lowercased() {
-            case "bestbuy":
-                let productInfo = BestBuyProductInfo(
-                    sku: product.idString,
-                    name: product.name,
-                    regularPrice: product.originalPrice ?? product.price ?? 0,
-                    salePrice: product.price,
-                    onSale: false,
-                    image: product.imageUrl,
-                    url: product.url?.absoluteString ?? "",
-                    description: product.productDescription
-                )
-                bestBuyTracker.startTracking(sku: product.idString, productInfo: productInfo)
-            case "ebay":
-                Task {
-                    do {
-                        _ = try await ebayManager.trackItem(
-                            id: product.idString,
-                            name: product.name,
-                            currentPrice: product.price ?? 0,
-                            thumbnailUrl: product.imageUrl
-                        )
-                    } catch {
-                        print("Failed to track eBay item: \(error)")
-                    }
-                }
-            default:
-                break
-            }
+        // Use ProductTrackingService for universal tracking
+        if trackingService.isTracking(product) {
+            trackingService.stopTracking(product)
+        } else {
+            trackingService.startTracking(product)
         }
+    }
+    
+    private func cleanProductTitle(_ title: String, brand: String) -> String {
+        // If brand exists and title is long, create a cleaner format
+        if !brand.isEmpty && title.count > 40 {
+            // Remove brand from title if it's already there
+            var cleanTitle = title
+            if title.lowercased().contains(brand.lowercased()) {
+                cleanTitle = title.replacingOccurrences(of: brand, with: "", options: .caseInsensitive)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            // Truncate if still too long
+            if cleanTitle.count > 35 {
+                cleanTitle = String(cleanTitle.prefix(35)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            return "\(brand) \(cleanTitle)"
+        }
+        
+        // For shorter titles or no brand, just return original (truncated if needed)
+        if title.count > 50 {
+            return String(title.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        return title
     }
     
     private func storeIcon(for store: String) -> String {

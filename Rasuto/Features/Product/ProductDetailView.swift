@@ -10,19 +10,27 @@ import SwiftUI
 struct ProductDetailView: View {
     let product: ProductItem
     @EnvironmentObject private var wishlistService: WishlistService
-    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
-    @EnvironmentObject private var ebayManager: EbayNotificationManager
+    // @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker // DISABLED for faster startup
+    // @EnvironmentObject private var ebayManager: EbayNotificationManager // Commented out - EbayNotificationManager disabled
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var axessoService = AxessoAmazonAPIService(apiKey: SecretKeys.axessoApiKeyPrimary)
+    @StateObject private var trackingService = ProductTrackingService.shared
     
     @State private var selectedImageIndex = 0
     @State private var isInWishlist = false
     @State private var isTracking = false
     @State private var showingShareSheet = false
     @State private var priceHistory: [PricePoint] = []
+    @State private var reviews: AxessoAmazonReviewsResponse?
+    @State private var amazonPriceHistory: AxessoAmazonPricesResponse?
+    @State private var isLoadingReviews = false
+    @State private var isLoadingPrices = false
+    @State private var showingReviews = false
+    @State private var showingPrices = false
+    @State private var errorMessage = ""
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ScrollView {
                 VStack(spacing: 0) {
                     // Product Images
                     productImageSection
@@ -64,6 +72,14 @@ struct ProductDetailView: View {
                             .padding(.horizontal)
                         }
                         
+                        // Amazon Features (if Amazon product)
+                        if product.source.lowercased().contains("amazon") {
+                            Divider()
+                                .padding(.vertical)
+                            
+                            amazonFeaturesSection
+                        }
+                        
                         // Price History Chart (if tracking)
                         if isTracking && !priceHistory.isEmpty {
                             Divider()
@@ -77,17 +93,17 @@ struct ProductDetailView: View {
                             .padding(.vertical)
                         
                         productDetailsSection
+                        
+                        // Price Trends (Premium Feature)
+                        Divider()
+                            .padding(.vertical)
+                        
+                        priceTrendsSection
                     }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
@@ -99,7 +115,12 @@ struct ProductDetailView: View {
                     ShareSheet(items: [url])
                 }
             }
-        }
+            .sheet(isPresented: $showingReviews) {
+                amazonReviewsSheet
+            }
+            .sheet(isPresented: $showingPrices) {
+                amazonPricesSheet
+            }
         .onAppear {
             checkStatus()
             loadPriceHistory()
@@ -119,7 +140,7 @@ struct ProductDetailView: View {
                         .aspectRatio(contentMode: .fit)
                 } placeholder: {
                     Rectangle()
-                        .fill(Color(.systemGray5))
+                        .fill(Color.white)
                         .overlay(
                             ProgressView()
                         )
@@ -129,7 +150,7 @@ struct ProductDetailView: View {
         }
         .frame(height: 300)
         .tabViewStyle(PageTabViewStyle())
-        .background(Color(.systemGray6))
+        .background(Color.white)
     }
     
     private var priceSection: some View {
@@ -174,16 +195,16 @@ struct ProductDetailView: View {
     
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            // Add to Wishlist Button
-            Button(action: toggleWishlist) {
+            // Save Item Button
+            Button(action: saveItem) {
                 Label(
-                    isInWishlist ? "In Wishlist" : "Add to Wishlist",
+                    isInWishlist ? "Saved" : "Save Item",
                     systemImage: isInWishlist ? "heart.fill" : "heart"
                 )
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(isInWishlist ? .pink : .blue)
+            .tint(isInWishlist ? .green : .blue)
             
             // Track Price Button
             Button(action: toggleTracking) {
@@ -258,7 +279,7 @@ struct ProductDetailView: View {
                 DetailRow(label: "Brand", value: product.brand)
                 DetailRow(label: "Category", value: product.category)
                 DetailRow(label: "SKU", value: product.sourceId)
-                DetailRow(label: "Source", value: product.store)
+                DetailRow(label: "Source", value: RetailerType.displayName(for: product.source))
                 
                 if let rating = product.rating {
                     HStack {
@@ -281,6 +302,344 @@ struct ProductDetailView: View {
             }
         }
         .padding(.horizontal)
+        .padding(.bottom, 16)
+    }
+    
+    // MARK: - Amazon Features Section
+    
+    private var amazonFeaturesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Amazon Features")
+                .font(.headline)
+            
+            // Feature Buttons
+            HStack(spacing: 12) {
+                // Reviews Button
+                Button(action: {
+                    loadAmazonReviews()
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "text.bubble")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                        Text("Reviews")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        if isLoadingReviews {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(10)
+                }
+                .disabled(isLoadingReviews)
+                
+                // Price History Button
+                Button(action: {
+                    loadAmazonPriceHistory()
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.title3)
+                            .foregroundColor(.green)
+                        Text("Price History")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        if isLoadingPrices {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(10)
+                }
+                .disabled(isLoadingPrices)
+            }
+            
+            if !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.top, 8)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private var priceTrendsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Price Trends & Analytics")
+                .font(.headline)
+            
+            ZStack {
+                // Background chart (mock data)
+                VStack(spacing: 12) {
+                    // Chart area with multiple trend lines
+                    ZStack {
+                        // Grid background
+                        GeometryReader { geometry in
+                            // Horizontal grid lines
+                            ForEach(0..<4) { i in
+                                Path { path in
+                                    let y = geometry.size.height * CGFloat(i) / 3
+                                    path.move(to: CGPoint(x: 0, y: y))
+                                    path.addLine(to: CGPoint(x: geometry.size.width, y: y))
+                                }
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                            }
+                            
+                            // Main price trend line
+                            Path { path in
+                                let points: [CGPoint] = [
+                                    CGPoint(x: 0, y: geometry.size.height * 0.6),
+                                    CGPoint(x: geometry.size.width * 0.15, y: geometry.size.height * 0.45),
+                                    CGPoint(x: geometry.size.width * 0.3, y: geometry.size.height * 0.7),
+                                    CGPoint(x: geometry.size.width * 0.45, y: geometry.size.height * 0.35),
+                                    CGPoint(x: geometry.size.width * 0.6, y: geometry.size.height * 0.5),
+                                    CGPoint(x: geometry.size.width * 0.75, y: geometry.size.height * 0.25),
+                                    CGPoint(x: geometry.size.width, y: geometry.size.height * 0.3)
+                                ]
+                                
+                                for (index, point) in points.enumerated() {
+                                    if index == 0 {
+                                        path.move(to: point)
+                                    } else {
+                                        path.addLine(to: point)
+                                    }
+                                }
+                            }
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [.blue, .purple]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                lineWidth: 2.5
+                            )
+                            
+                            // Secondary trend line (lighter)
+                            Path { path in
+                                let points: [CGPoint] = [
+                                    CGPoint(x: 0, y: geometry.size.height * 0.8),
+                                    CGPoint(x: geometry.size.width * 0.2, y: geometry.size.height * 0.6),
+                                    CGPoint(x: geometry.size.width * 0.4, y: geometry.size.height * 0.75),
+                                    CGPoint(x: geometry.size.width * 0.6, y: geometry.size.height * 0.55),
+                                    CGPoint(x: geometry.size.width * 0.8, y: geometry.size.height * 0.4),
+                                    CGPoint(x: geometry.size.width, y: geometry.size.height * 0.45)
+                                ]
+                                
+                                for (index, point) in points.enumerated() {
+                                    if index == 0 {
+                                        path.move(to: point)
+                                    } else {
+                                        path.addLine(to: point)
+                                    }
+                                }
+                            }
+                            .stroke(Color.green.opacity(0.6), lineWidth: 2)
+                            
+                            // Data points
+                            ForEach(0..<5) { i in
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 4, height: 4)
+                                    .position(
+                                        x: geometry.size.width * CGFloat(i) / 4,
+                                        y: geometry.size.height * (0.3 + CGFloat.random(in: 0...0.4))
+                                    )
+                            }
+                        }
+                        .frame(height: 120)
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                    
+                    // Analytics stats with icons
+                    HStack {
+                        VStack(spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chart.bar.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                Text("Avg. Price")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Text("$\(product.currentPrice * 1.1, specifier: "%.2f")")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.green)
+                                Text("Best Deal")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Text("15% off")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.green)
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                Text("Best Time")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Text("Nov-Dec")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Blur overlay with stock analytics background
+                ZStack {
+                    // Stock analytics background pattern
+                    GeometryReader { geometry in
+                        ZStack {
+                            // Background gradient
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.blue.opacity(0.1),
+                                    Color.purple.opacity(0.05)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            
+                            // Multiple chart lines creating a stock image effect
+                            Path { path in
+                                let points: [(CGFloat, CGFloat)] = [
+                                    (0.1, 0.7), (0.15, 0.5), (0.25, 0.6), (0.35, 0.3),
+                                    (0.45, 0.4), (0.55, 0.2), (0.65, 0.35), (0.75, 0.15),
+                                    (0.85, 0.25), (0.9, 0.1)
+                                ]
+                                
+                                for (index, point) in points.enumerated() {
+                                    let x = geometry.size.width * point.0
+                                    let y = geometry.size.height * point.1
+                                    
+                                    if index == 0 {
+                                        path.move(to: CGPoint(x: x, y: y))
+                                    } else {
+                                        path.addLine(to: CGPoint(x: x, y: y))
+                                    }
+                                }
+                            }
+                            .stroke(Color.blue.opacity(0.2), lineWidth: 2)
+                            
+                            // Second trend line
+                            Path { path in
+                                let points: [(CGFloat, CGFloat)] = [
+                                    (0.1, 0.8), (0.2, 0.6), (0.3, 0.75), (0.4, 0.5),
+                                    (0.5, 0.65), (0.6, 0.4), (0.7, 0.55), (0.8, 0.3),
+                                    (0.9, 0.45)
+                                ]
+                                
+                                for (index, point) in points.enumerated() {
+                                    let x = geometry.size.width * point.0
+                                    let y = geometry.size.height * point.1
+                                    
+                                    if index == 0 {
+                                        path.move(to: CGPoint(x: x, y: y))
+                                    } else {
+                                        path.addLine(to: CGPoint(x: x, y: y))
+                                    }
+                                }
+                            }
+                            .stroke(Color.green.opacity(0.15), lineWidth: 1.5)
+                            
+                            // Bar chart elements
+                            HStack(alignment: .bottom, spacing: 8) {
+                                ForEach(0..<8) { i in
+                                    Rectangle()
+                                        .fill(Color.purple.opacity(0.1))
+                                        .frame(width: 6, height: CGFloat.random(in: 10...40))
+                                }
+                            }
+                            .position(x: geometry.size.width * 0.7, y: geometry.size.height * 0.7)
+                        }
+                    }
+                    
+                    // Blur overlay
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                    
+                    // Content
+                    VStack(spacing: 24) {
+                        // Analytics icon with background
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            VStack(spacing: 6) {
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundColor(.blue)
+                                
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.blue)
+                                    .offset(y: -8)
+                            }
+                        }
+                        
+                        VStack(spacing: 12) {
+                            Text("Advanced Analytics")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                            
+                            Text("Price predictions & market insights")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        // Coming Soon badge
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            
+                            Text("Coming Soon")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(20)
+                        .padding(.top, 8)
+                    }
+                    .padding(40)
+                }
+                .frame(minHeight: 280)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+            }
+        }
+        .padding(.horizontal)
         .padding(.bottom, 32)
     }
     
@@ -288,10 +647,10 @@ struct ProductDetailView: View {
     
     private func checkStatus() {
         isInWishlist = product.isFavorite
-        isTracking = product.isTracked
+        isTracking = trackingService.isTracking(product)
     }
     
-    private func toggleWishlist() {
+    private func saveItem() {
         withAnimation(.spring(response: 0.3)) {
             isInWishlist.toggle()
         }
@@ -300,71 +659,33 @@ struct ProductDetailView: View {
         Task {
             if isInWishlist {
                 await wishlistService.addToWishlist(product)
+                
+                // Provide feedback that item was saved
+                await MainActor.run {
+                    print("✅ Item saved to collection: \(product.name)")
+                    // Optionally dismiss after save or show success feedback
+                }
             } else {
                 await wishlistService.removeFromWishlist(product.id)
+                
+                await MainActor.run {
+                    print("🗑️ Item removed from saved items: \(product.name)")
+                }
             }
         }
     }
     
     private func toggleTracking() {
         withAnimation(.spring(response: 0.3)) {
-            isTracking.toggle()
-        }
-        
-        // Start/stop tracking
-        if isTracking {
-            startTracking()
-        } else {
-            stopTracking()
-        }
-    }
-    
-    private func startTracking() {
-        switch product.store.lowercased() {
-        case "bestbuy":
-            let productInfo = BestBuyProductInfo(
-                sku: product.idString,
-                name: product.name,
-                regularPrice: product.originalPrice ?? product.currentPrice,
-                salePrice: product.price,
-                onSale: product.isOnSale,
-                image: product.imageUrl,
-                url: product.productUrl ?? "",
-                description: product.description ?? ""
-            )
-            bestBuyTracker.startTracking(sku: product.idString, productInfo: productInfo)
-        case "ebay":
-            Task {
-                do {
-                    _ = try await ebayManager.trackItem(
-                        id: product.idString,
-                        name: product.name,
-                        currentPrice: product.currentPrice,
-                        thumbnailUrl: product.imageUrl
-                    )
-                } catch {
-                    print("Failed to track eBay item: \(error)")
-                }
+            if isTracking {
+                // Stop tracking
+                trackingService.stopTracking(product)
+                isTracking = false
+            } else {
+                // Start tracking
+                trackingService.startTracking(product)
+                isTracking = true
             }
-        default:
-            break
-        }
-    }
-    
-    private func stopTracking() {
-        switch product.store.lowercased() {
-        case "bestbuy":
-            bestBuyTracker.stopTracking(for: product.idString)
-        case "ebay":
-            Task {
-                do {
-                    _ = try await ebayManager.untrackItem(id: product.idString)
-                } catch {
-                    print("Failed to untrack eBay item: \(error)")
-                }
-            }
-        default:
-            break
         }
     }
     
@@ -378,6 +699,161 @@ struct ProductDetailView: View {
                     currency: product.currency ?? "USD"
                 )
             }.reversed()
+        }
+    }
+    
+    // MARK: - Amazon Reviews Sheet
+    
+    private var amazonReviewsSheet: some View {
+        NavigationStack {
+            ScrollView {
+                if let reviews = reviews {
+                    LazyVStack(spacing: 16) {
+                        if let reviewsList = reviews.reviews {
+                            ForEach(reviewsList.indices, id: \.self) { index in
+                                let review = reviewsList[index]
+                                AmazonReviewCardView(review: review)
+                            }
+                        } else {
+                            Text("No reviews available")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        }
+                    }
+                    .padding()
+                } else {
+                    ProgressView("Loading reviews...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationTitle("Product Reviews")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        showingReviews = false
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Amazon Prices Sheet
+    
+    private var amazonPricesSheet: some View {
+        NavigationStack {
+            ScrollView {
+                if let prices = amazonPriceHistory {
+                    VStack(spacing: 16) {
+                        if let currentPrice = prices.currentPrice {
+                            VStack {
+                                Text("Current Price")
+                                    .font(.headline)
+                                Text("$\(currentPrice, specifier: "%.2f")")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                        
+                        if let priceHistoryList = prices.priceHistory, !priceHistoryList.isEmpty {
+                            VStack(alignment: .leading) {
+                                Text("Price History")
+                                    .font(.headline)
+                                    .padding(.bottom, 8)
+                                
+                                ForEach(priceHistoryList.indices, id: \.self) { index in
+                                    let entry = priceHistoryList[index]
+                                    HStack {
+                                        Text(entry.date ?? "Unknown")
+                                            .font(.caption)
+                                        Spacer()
+                                        if let price = entry.price {
+                                            Text("$\(price, specifier: "%.2f")")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                } else {
+                    ProgressView("Loading price history...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationTitle("Price History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        showingPrices = false
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Amazon API Methods
+    
+    private func loadAmazonReviews() {
+        guard let productUrl = product.productUrl else {
+            errorMessage = "Product URL not available for reviews"
+            return
+        }
+        
+        isLoadingReviews = true
+        errorMessage = ""
+        
+        Task {
+            do {
+                let reviewsResponse = try await axessoService.getProductReviews(url: productUrl)
+                await MainActor.run {
+                    reviews = reviewsResponse
+                    showingReviews = true
+                    isLoadingReviews = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to load reviews: \(error.localizedDescription)"
+                    isLoadingReviews = false
+                }
+            }
+        }
+    }
+    
+    private func loadAmazonPriceHistory() {
+        guard let productUrl = product.productUrl else {
+            errorMessage = "Product URL not available for price history"
+            return
+        }
+        
+        isLoadingPrices = true
+        errorMessage = ""
+        
+        Task {
+            do {
+                let pricesResponse = try await axessoService.getProductPrices(url: productUrl)
+                await MainActor.run {
+                    amazonPriceHistory = pricesResponse
+                    showingPrices = true
+                    isLoadingPrices = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to load price history: \(error.localizedDescription)"
+                    isLoadingPrices = false
+                }
+            }
         }
     }
 }
@@ -474,6 +950,47 @@ struct PriceHistoryChart: View {
     }
 }
 
+struct AmazonReviewCardView: View {
+    let review: AxessoAmazonReview
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(review.userName ?? "Anonymous")
+                    .font(.headline)
+                
+                Spacer()
+                
+                if let rating = review.rating {
+                    Text(rating)
+                        .font(.caption)
+                        .foregroundColor(.yellow)
+                }
+            }
+            
+            if let title = review.title {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            
+            if let text = review.text {
+                Text(text)
+                    .font(.body)
+            }
+            
+            if let date = review.date {
+                Text(date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(12)
+    }
+}
+
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     
@@ -500,7 +1017,7 @@ struct ShareSheet: UIViewControllerRepresentable {
         imageURL: URL(string: "https://example.com/image.jpg"),
         isInStock: true
     ))
-        .environmentObject(WishlistService())
-        .environmentObject(BestBuyPriceTracker(bestBuyService: BestBuyAPIService(apiKey: "test")))
-        .environmentObject(EbayNotificationManager())
+        .environmentObject(WishlistService.shared)
+        // .environmentObject(BestBuyPriceTracker(bestBuyService: BestBuyAPIService(apiKey: "test"))) // DISABLED
+        // .environmentObject(EbayNotificationManager()) // Commented out - EbayNotificationManager disabled
 }

@@ -12,6 +12,7 @@ import SwiftUI
 struct TopNavBar: View {
     @Binding var isRotating: Bool
     var onAddTapped: () -> Void
+    var onSearchTapped: (() -> Void)? = nil
     
     @State private var searchText = ""
     @State private var isSearchActive = false
@@ -19,28 +20,25 @@ struct TopNavBar: View {
     @State private var selectedProduct: ProductItem?
     @State private var showingProductDetail = false
     @FocusState private var isSearchFocused: Bool
-    @StateObject private var wishlistService = WishlistService()
-    @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker
-    @EnvironmentObject private var ebayManager: EbayNotificationManager
+    @ObservedObject private var wishlistService = WishlistService.shared
+    // @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker // REMOVED
+    // @EnvironmentObject private var ebayManager: EbayNotificationManager // Commented out - EbayNotificationManager disabled
     
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                // Logo
-                Circle()
-                    .fill(Color(.systemGray5))
-                    .frame(width: 36, height: 36)
-                    .overlay(
-                        Text("R")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .frame(width: 35, height: 35)
-                            .background(Color.black)
-                            .clipShape(Circle())
-                    )
-                    .scaleEffect(isSearchActive ? 0.9 : 1.0)
-                    .animation(.spring(response: 0.3), value: isSearchActive)
+                // Logo - simple R design
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.black)
+                        .frame(width: 36, height: 36)
+                    
+                    Text("R")
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(isSearchActive ? 0.9 : 1.0)
+                .animation(.spring(response: 0.3), value: isSearchActive)
                 
                 // Universal Search Bar
                 HStack {
@@ -82,13 +80,11 @@ struct TopNavBar: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(.systemGray5))
+                .background(Color(.systemGray6))
                 .cornerRadius(20)
                 .onTapGesture {
-                    withAnimation(.spring(response: 0.3)) {
-                        isSearchActive = true
-                        isSearchFocused = true
-                    }
+                    // Open search card
+                    onSearchTapped?()
                 }
                 
                 // Add button (hide when searching)
@@ -105,7 +101,7 @@ struct TopNavBar: View {
                         Image(systemName: "plus")
                             .foregroundColor(.blue)
                             .padding(6)
-                            .background(Color(.systemGray5))
+                            .background(Color(.systemGray6))
                             .clipShape(Circle())
                             .rotationEffect(.degrees(isRotating ? 90 : 0))
                     }
@@ -150,10 +146,11 @@ struct TopNavBar: View {
             if let product = selectedProduct {
                 ProductDetailView(product: product)
                     .environmentObject(wishlistService)
-                    .environmentObject(bestBuyTracker)
-                    .environmentObject(ebayManager)
+                    // .environmentObject(bestBuyTracker) // REMOVED
+                    // .environmentObject(ebayManager) // Commented out - EbayNotificationManager disabled
             }
         }
+        // Search view sheet removed - using search card approach
     }
 }
 
@@ -224,37 +221,71 @@ struct UniversalSearchResultsView: View {
                             }
                         }
                         
-                        if !searchManager.recentSearches.isEmpty && searchText.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Recent", systemImage: "clock")
-                                        .font(.headline)
-                                    Spacer()
-                                    Button("Clear") {
-                                        searchManager.clearRecentSearches()
+                        // Show suggestions and recent searches when search is empty
+                        if searchText.isEmpty {
+                            VStack(alignment: .leading, spacing: 16) {
+                                // Suggested searches
+                                if !searchManager.suggestedSearches.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Label("Trending Searches", systemImage: "chart.line.uptrend.xyaxis")
+                                            .font(.headline)
+                                            .padding(.horizontal)
+                                        
+                                        ForEach(searchManager.suggestedSearches, id: \.self) { suggestion in
+                                            Button(action: {
+                                                searchText = suggestion
+                                                searchManager.performFullSearch(query: suggestion)
+                                            }) {
+                                                HStack {
+                                                    Image(systemName: "sparkle")
+                                                        .font(.caption)
+                                                        .foregroundColor(.orange)
+                                                    Text(suggestion)
+                                                        .foregroundColor(.primary)
+                                                    Spacer()
+                                                }
+                                                .padding(.horizontal)
+                                                .padding(.vertical, 4)
+                                            }
+                                        }
                                     }
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
                                 }
                                 
-                                ForEach(searchManager.recentSearches.prefix(5), id: \.self) { search in
-                                    Button(action: {
-                                        searchText = search
-                                        searchManager.performFullSearch(query: search)
-                                    }) {
+                                // Recent searches
+                                if !searchManager.recentSearches.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
                                         HStack {
-                                            Text(search)
-                                                .foregroundColor(.primary)
+                                            Label("Recent", systemImage: "clock")
+                                                .font(.headline)
                                             Spacer()
-                                            Image(systemName: "arrow.up.left")
-                                                .font(.caption)
-                                                .foregroundColor(.gray)
+                                            Button("Clear") {
+                                                searchManager.clearRecentSearches()
+                                            }
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
                                         }
-                                        .padding(.vertical, 4)
+                                        .padding(.horizontal)
+                                        
+                                        ForEach(searchManager.recentSearches.prefix(5), id: \.self) { search in
+                                            Button(action: {
+                                                searchText = search
+                                                searchManager.performFullSearch(query: search)
+                                            }) {
+                                                HStack {
+                                                    Text(search)
+                                                        .foregroundColor(.primary)
+                                                    Spacer()
+                                                    Image(systemName: "arrow.up.left")
+                                                        .font(.caption)
+                                                        .foregroundColor(.gray)
+                                                }
+                                                .padding(.horizontal)
+                                                .padding(.vertical, 4)
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            .padding(.horizontal)
                         }
                     }
                 }
@@ -305,16 +336,19 @@ struct SearchResultSection<T: SearchResultItem>: View {
                                     .lineLimit(1)
                                 
                                 HStack(spacing: 4) {
-                                    Text("$\(product.currentPrice, specifier: "%.2f")")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.green)
+                                    if let price = product.price {
+                                        Text("$\(price, specifier: "%.2f")")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(.green)
+                                        
+                                        Text("•")
+                                            .foregroundColor(.gray)
+                                    }
                                     
-                                    Text("•")
-                                        .foregroundColor(.gray)
-                                    
-                                    Text(product.store)
+                                    Text(RetailerType.displayName(for: product.source))
                                         .font(.system(size: 12))
                                         .foregroundColor(.secondary)
+                                        .textCase(.none)
                                 }
                             }
                         } else {
@@ -344,99 +378,7 @@ struct SearchResultSection<T: SearchResultItem>: View {
     }
 }
 
-// MARK: - Search Result Protocol
 
-protocol SearchResultItem: Identifiable {
-    var displayName: String { get }
-}
-
-extension ProductItem: SearchResultItem {
-    var displayName: String { name }
-}
-
-extension String: SearchResultItem {
-    var displayName: String { self }
-    public var id: String { self }
-}
-
-// MARK: - Universal Search Manager
-
-class UniversalSearchManager: ObservableObject {
-    @Published var instantResults: [any SearchResultItem] = []
-    @Published var productResults: [ProductItem] = []
-    @Published var categoryResults: [String] = []
-    @Published var recentSearches: [String] = []
-    @Published var isSearching = false
-    @Published var hasSearched = false
-    
-    private let categories = ["Electronics", "Gaming", "Wearables", "TV & Home Theater", "Audio", "Computers", "Phones"]
-    
-    init() {
-        loadRecentSearches()
-    }
-    
-    func updateInstantResults(query: String) {
-        guard !query.isEmpty else {
-            clearResults()
-            return
-        }
-        
-        // Filter products
-        productResults = ProductItem.sampleItems.filter {
-            $0.name.localizedCaseInsensitiveContains(query) ||
-            $0.category.localizedCaseInsensitiveContains(query) ||
-            $0.brand.localizedCaseInsensitiveContains(query)
-        }
-        
-        // Filter categories
-        categoryResults = categories.filter {
-            $0.localizedCaseInsensitiveContains(query)
-        }
-        
-        // Combine results
-        instantResults = (productResults as [any SearchResultItem]) + (categoryResults as [any SearchResultItem])
-    }
-    
-    func performFullSearch(query: String) {
-        guard !query.isEmpty else { return }
-        
-        isSearching = true
-        hasSearched = true
-        saveRecentSearch(query)
-        
-        // Simulate API call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.updateInstantResults(query: query)
-            self.isSearching = false
-        }
-    }
-    
-    func clearResults() {
-        instantResults = []
-        productResults = []
-        categoryResults = []
-        hasSearched = false
-    }
-    
-    private func saveRecentSearch(_ query: String) {
-        if !recentSearches.contains(query) {
-            recentSearches.insert(query, at: 0)
-            if recentSearches.count > 10 {
-                recentSearches.removeLast()
-            }
-            UserDefaults.standard.set(recentSearches, forKey: "universalRecentSearches")
-        }
-    }
-    
-    private func loadRecentSearches() {
-        recentSearches = UserDefaults.standard.stringArray(forKey: "universalRecentSearches") ?? []
-    }
-    
-    func clearRecentSearches() {
-        recentSearches = []
-        UserDefaults.standard.removeObject(forKey: "universalRecentSearches")
-    }
-}
 
 // MARK: - Corner Radius Extension
 

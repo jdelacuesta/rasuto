@@ -56,79 +56,17 @@ class OAuthHandler: NSObject, ObservableObject {
     // MARK: - Configuration
     
     private func setupServiceConfigs() {
-        // Setup eBay configuration
-        do {
-            // Use APIKeyManager directly with string keys instead of APIConfig
-            let ebayClientID = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientID)
-            let ebayClientSecret = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientSecret)
-            
-            // Check if this is a sandbox key
-            let isSandbox = ebayClientID.contains("SBX") || ebayClientSecret.contains("SBX")
-            
-            // Use the appropriate endpoints based on environment
-            let tokenEndpoint = isSandbox ?
-                "https://api.sandbox.ebay.com/identity/v1/oauth2/token" :
-                "https://api.ebay.com/identity/v1/oauth2/token"
-                
-            let authEndpoint = isSandbox ?
-                "https://auth.sandbox.ebay.com/oauth2/authorize" :
-                "https://auth.ebay.com/oauth2/authorize"
-            
-            // Trim whitespace from credentials
-            let trimmedClientID = ebayClientID.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedClientSecret = ebayClientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            print("🔍 DEBUG - ClientID length: \(trimmedClientID.count)")
-            print("🔍 DEBUG - ClientSecret length: \(trimmedClientSecret.count)")
-            
-            configurations["ebay"] = OAuthConfig(
-                clientID: trimmedClientID,
-                clientSecret: trimmedClientSecret,
-                redirectURI: "John_Dela_Cuest-JohnDela-Rasuto-bqtwl",
-                authorizationEndpoint: authEndpoint,
-                tokenEndpoint: tokenEndpoint,
-                scope: "https://api.ebay.com/oauth/api_scope"
-            )
-            
-            print("✅ eBay OAuth config: \(isSandbox ? "SANDBOX" : "PRODUCTION")")
-            print("✅ Token endpoint: \(tokenEndpoint)")
-        } catch {
-            print("❌ Failed to load eBay OAuth configuration: \(error)")
-            print("🔍 DEBUG: Checking available keys in keychain...")
-            let keys = [
-                "com.rasuto.api.ebay",
-                "com.rasuto.api.ebay.clientid",
-                "com.rasuto.api.ebay.clientsecret",
-                "ebay.api_key",
-                "ebay.client_id",
-                "ebay.client_secret"
-            ]
-
-            for key in keys {
-                let exists = APIKeyManager.shared.hasAPIKey(for: key)
-                print("  Key \"\(key)\": \(exists ? "EXISTS" : "NOT FOUND")")
-                if exists {
-                    do {
-                        let value = try APIKeyManager.shared.getAPIKey(for: key)
-                        print("    Value: \(value.prefix(4))...")
-                    } catch {
-                        print("    Error retrieving: \(error)")
-                    }
-                }
-            }
-        }
+        // OAuth configurations can be added here for future services
+        // Currently no OAuth services are configured
+        print("📘 OAuth handler initialized - no services configured")
     }
     
     // MARK: - Authentication
     
     /// Main method to get access token
     func authorize(for service: String) async throws -> String {
-        // Use client credentials for eBay, user auth for others
-        if service == "ebay" {
-            return try await getClientCredentialsToken(for: service)
-        } else {
-            return try await getAuthorizationCodeToken(for: service)
-        }
+        // Default to authorization code flow for most services
+        return try await getAuthorizationCodeToken(for: service)
     }
     
     /// Get token using client credentials (app-only access)

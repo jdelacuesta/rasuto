@@ -166,5 +166,84 @@ class APIKeyManager {
             throw KeychainError.unexpectedStatus(status)
         }
     }
+    
+    // MARK: - SerpAPI Key Management
+    
+    /// SerpAPI service identifiers
+    struct SerpAPIKeys {
+        static let main = "com.rasuto.api.serpapi"
+        static let googleShopping = "com.rasuto.api.serpapi.google_shopping"
+        static let ebayProduction = "com.rasuto.api.serpapi.ebay"
+        static let walmartProduction = "com.rasuto.api.serpapi.walmart"
+        static let homeDepot = "com.rasuto.api.serpapi.home_depot"
+        static let amazon = "com.rasuto.api.serpapi.amazon"
+    }
+    
+    /// Saves the main SerpAPI key for all services
+    /// - Parameter key: The SerpAPI key
+    /// - Throws: KeychainError if the operation fails
+    func saveSerpAPIKey(_ key: String) throws {
+        try saveAPIKey(for: SerpAPIKeys.main, key: key)
+        
+        // Also save under specific service identifiers for easy access
+        try saveAPIKey(for: SerpAPIKeys.googleShopping, key: key)
+        try saveAPIKey(for: SerpAPIKeys.ebayProduction, key: key)
+        try saveAPIKey(for: SerpAPIKeys.walmartProduction, key: key)
+        try saveAPIKey(for: SerpAPIKeys.homeDepot, key: key)
+        try saveAPIKey(for: SerpAPIKeys.amazon, key: key)
+    }
+    
+    /// Retrieves the SerpAPI key
+    /// - Returns: The SerpAPI key as a string
+    /// - Throws: KeychainError if the operation fails
+    func getSerpAPIKey() throws -> String {
+        return try getAPIKey(for: SerpAPIKeys.main)
+    }
+    
+    /// Checks if SerpAPI key exists
+    /// - Returns: True if the key exists, false otherwise
+    func hasSerpAPIKey() -> Bool {
+        return hasAPIKey(for: SerpAPIKeys.main)
+    }
+    
+    /// Deletes all SerpAPI keys
+    /// - Throws: KeychainError if any operation fails
+    func deleteSerpAPIKeys() throws {
+        let allSerpAPIServices = [
+            SerpAPIKeys.main,
+            SerpAPIKeys.googleShopping,
+            SerpAPIKeys.ebayProduction,
+            SerpAPIKeys.walmartProduction,
+            SerpAPIKeys.homeDepot,
+            SerpAPIKeys.amazon
+        ]
+        
+        try deleteAllAPIKeys(for: allSerpAPIServices)
+    }
+    
+    /// Convenience method to get SerpAPI key for a specific retailer
+    /// - Parameter retailer: The retailer type ("google_shopping", "ebay", etc.)
+    /// - Returns: The SerpAPI key
+    /// - Throws: KeychainError if the operation fails
+    func getSerpAPIKey(for retailer: String) throws -> String {
+        let serviceKey: String
+        
+        switch retailer.lowercased() {
+        case "google_shopping", "google":
+            serviceKey = SerpAPIKeys.googleShopping
+        case "ebay":
+            serviceKey = SerpAPIKeys.ebayProduction
+        case "walmart":
+            serviceKey = SerpAPIKeys.walmartProduction
+        case "home_depot", "homedepot":
+            serviceKey = SerpAPIKeys.homeDepot
+        case "amazon":
+            serviceKey = SerpAPIKeys.amazon
+        default:
+            serviceKey = SerpAPIKeys.main
+        }
+        
+        return try getAPIKey(for: serviceKey)
+    }
 }
 

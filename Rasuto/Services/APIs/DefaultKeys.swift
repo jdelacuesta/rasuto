@@ -8,14 +8,23 @@
 import Foundation
 
 struct DefaultKeys {
-    // eBay API Keys - Replace with your actual values or use SecretKeys.swift
-    static let ebayApiKey = "YOUR_EBAY_API_KEY" // Replace with your actual API key
-    static let ebayClientId = "YOUR_EBAY_CLIENT_ID" // Replace with your actual Client ID (format: AppName-AppID-SBX-ID-ID)
-    static let ebayClientSecret = "YOUR_EBAY_CLIENT_SECRET" // Replace with your actual Client Secret (format: SBX-ID-ID-ID-ID)
+    // SECURITY: API keys removed for GitHub security
+    // For evaluation: See API_KEYS.md file for actual working keys
     
-    // Best Buy API Keys - Replace with your actual values or use SecretKeys.swift
-    static let bestBuyRapidApiKeyValue = "YOUR_BESTBUY_RAPIDAPI_KEY" // Replace with your actual RapidAPI key
+    // SerpAPI - Primary API layer providing 90% coverage for Google Shopping, Amazon, eBay, Walmart, and Home Depot
+    static let serpApiKey = ""
     
-    // Walmart API Key (placeholder for future use)
-    static let walmartApiKey = "YOUR_WALMART_API_KEY"
+    // eBay integration provided via SerpAPI - no separate keys needed
+    
+    // BestBuy integration provided via SerpAPI - no separate keys needed
+    
+    // Walmart integration provided via SerpAPI - no separate keys needed
+    
+    // Axesso Amazon API Keys - Direct Amazon data provider
+    static let axessoApiKeyPrimary = ""
+    static let axessoApiKeySecondary = ""
+    
+    // Oxylabs Web Scraper API - Universal fallback scraper
+    static let oxylabsUsername = ""
+    static let oxylabsPassword = ""
 }

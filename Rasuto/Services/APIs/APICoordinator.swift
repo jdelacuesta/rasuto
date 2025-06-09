@@ -26,17 +26,27 @@ final class APICoordinator: ObservableObject {
     private let circuitBreaker = CircuitBreakerManager.shared
     private let requestDeduplicator = RequestDeduplicator()
     private let performanceMonitor = PerformanceMonitor.shared
+    private let quotaProtection = QuotaProtectionManager.shared
+    private let persistentCache = PersistentProductCache.shared
     
     // MARK: - Configuration
     private let maxConcurrentRequests = 3
     private let defaultTimeout: TimeInterval = 30
+    
+    // MARK: - Retailer Categories
+    private let serpAPIRetailers = ["google_shopping", "walmart_production", "home_depot", "amazon"]
+    private let secondaryRetailers = ["axesso_amazon"]
+    
+    // Live testing toggle - set to true to bypass quota protection for testing
+    public var enableLiveTesting = true // FORCE ENABLED: Always use live API data for real product images
     
     // MARK: - Initialization
     
     init() {
         Task {
             await initializeServices()
-            await monitorAPIHealth()
+            // DISABLED: Health monitoring to preserve SerpAPI quota
+            // await monitorAPIHealth()
         }
     }
     
@@ -59,6 +69,23 @@ final class APICoordinator: ObservableObject {
         options: SearchOptions = SearchOptions()
     ) async throws -> AggregatedSearchResult {
         
+        // QUOTA PROTECTION: Check if we can make API requests (only when live testing is disabled)
+        if !enableLiveTesting {
+            let canMakeRequest = await quotaProtection.canMakeAPIRequest(service: "search")
+            if !canMakeRequest {
+                print("🛡️ QUOTA PROTECTION: Search blocked to preserve API quota")
+                // Return cached results if available
+                let cacheKey = "coordinated_search_\(query)_\(retailers.sorted().joined())"
+                if let cachedResult: AggregatedSearchResult = await cache.get(key: cacheKey) {
+                    print("📦 Returning cached results for quota protection")
+                    return cachedResult
+                }
+                throw APIError.quotaExceeded
+            }
+        } else {
+            print("🚀 LIVE TESTING: Quota protection bypassed - using live API data for REAL product images")
+        }
+        
         let searchKey = "search_\(query)_\(retailers.joined(separator: "_"))"
         
         // Check for ongoing request
@@ -76,6 +103,12 @@ final class APICoordinator: ObservableObject {
         do {
             let result = try await searchTask.value
             await requestDeduplicator.removeOngoingRequest(key: searchKey)
+            // Record successful API usage - Only count SerpAPI calls
+            let serpAPICallCount = result.retailerResults.keys.filter { serpAPIRetailers.contains($0) }.count
+            if serpAPICallCount > 0 {
+                await quotaProtection.recordAPIRequest()
+                print("📊 Quota: Recorded \(serpAPICallCount) SerpAPI calls out of \(result.retailerResults.count) total API calls")
+            }
             return result
         } catch {
             await requestDeduplicator.removeOngoingRequest(key: searchKey)
@@ -92,16 +125,24 @@ final class APICoordinator: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        // Determine which services to use
-        let activeRetailers = retailers.isEmpty ? Array(services.keys) : retailers
+        // Determine which services to use - SerpAPI core + secondary layer
+        let allRetailers = serpAPIRetailers + secondaryRetailers
+        let activeRetailers = retailers.isEmpty ? allRetailers : retailers
         let availableServices = activeRetailers.compactMap { retailer in
             services[retailer].map { (retailer, $0) }
         }
         
-        // Check cache first
+        // Check cache first - but skip for trending queries to ensure fresh data
         let cacheKey = "coordinated_search_\(query)_\(activeRetailers.sorted().joined())"
-        if let cachedResult: AggregatedSearchResult = await cache.get(key: cacheKey) {
-            return cachedResult
+        let forceFreshQueries = ["headphones", "coffee maker", "wireless mouse", "bluetooth speaker", "backpack", "watch", "tablet", "camera"]
+        
+        if !forceFreshQueries.contains(query.lowercased()) {
+            if let cachedResult: AggregatedSearchResult = await cache.get(key: cacheKey) {
+                print("📦 Using cached results for query: \(query)")
+                return cachedResult
+            }
+        } else {
+            print("🔥 Skipping cache for trending query: \(query) - forcing fresh API call")
         }
         
         // Perform parallel searches with error handling
@@ -141,8 +182,14 @@ final class APICoordinator: ObservableObject {
         // Process and aggregate results
         let aggregatedResult = await processSearchResults(results, query: query, options: options)
         
-        // Cache the result
-        await cache.set(key: cacheKey, value: aggregatedResult, ttl: 300) // 5 minutes
+        // Smart caching - longer cache for trending queries to save quota
+        let trendsService = GoogleTrendsService.shared
+        let trendingQueries = trendsService.getTrendingProducts().map { $0.lowercased() }
+        let isTrendingQuery = trendingQueries.contains(query.lowercased())
+        let cacheTTL: TimeInterval = isTrendingQuery ? 3600 : 300 // 1 hour for trending, 5 min for regular
+        
+        await cache.set(key: cacheKey, value: aggregatedResult, ttl: cacheTTL)
+        print("📦 Cached results for '\(query)' with TTL: \(cacheTTL/60) minutes")
         
         return aggregatedResult
     }
@@ -219,23 +266,53 @@ final class APICoordinator: ObservableObject {
     // MARK: - Private Helper Methods
     
     private func initializeServices() async {
-        // Initialize all available services
+        // Initialize all available services with new layered architecture
         do {
             let apiConfig = APIConfig()
             
-            // Register BestBuy service
-            if let bestBuyService = try? await apiConfig.createBestBuyService() {
-                await registerService(bestBuyService, for: "bestbuy")
+            // LAYER 1: SerpAPI (Primary Layer) - Developer Plan 100k searches/month
+            // Provides comprehensive retailer coverage with structured data
+            if let serpAPIGoogleService = try? apiConfig.createSerpAPIGoogleShoppingService() {
+                await registerService(serpAPIGoogleService, for: "google_shopping")
             }
             
-            // Register Walmart service
-            if let walmartService = try? await apiConfig.createWalmartService() {
-                await registerService(walmartService, for: "walmart")
+            if let serpAPIEbayService = try? apiConfig.createSerpAPIEbayService() {
+                await registerService(serpAPIEbayService, for: "ebay_production")
             }
             
-            // Register eBay service
-            if let ebayService = try? await apiConfig.createEbayService() {
-                await registerService(ebayService, for: "ebay")
+            if let serpAPIWalmartService = try? apiConfig.createSerpAPIWalmartService() {
+                await registerService(serpAPIWalmartService, for: "walmart_production")
+            }
+            
+            if let serpAPIHomeDepotService = try? apiConfig.createSerpAPIHomeDepotService() {
+                await registerService(serpAPIHomeDepotService, for: "home_depot")
+            }
+            
+            if let serpAPIAmazonService = try? apiConfig.createSerpAPIAmazonService() {
+                await registerService(serpAPIAmazonService, for: "amazon")
+            }
+            
+            
+            // LAYER 2: Amazon Layer - Axesso for direct Amazon access
+            // Enhanced Amazon data with price history capabilities
+            let axessoService = AxessoAmazonAPIService(apiKey: SecretKeys.axessoApiKeyPrimary)
+            await registerService(axessoService, for: "axesso_amazon")
+            
+            // LAYER 3: Enhanced Amazon API - Axesso for detailed Amazon data
+            // Provides enhanced Amazon product data and pricing
+            if let axessoService = try? apiConfig.createAxessoAmazonService() {
+                await registerService(axessoService, for: "axesso_amazon")
+            }
+            
+            // LAYER 4: Fallback Scraper - Oxylabs for when APIs fail or lack data
+            // 7-day trial with 5K requests for comprehensive fallback coverage
+            let oxylabsService = OxylabsScraperService.shared
+            await registerService(oxylabsService, for: "oxylabs_fallback")
+            
+            // LAYER 5: Additional SerpAPI eBay service for enhanced coverage
+            // Provides auction and Buy It Now product data via SerpAPI
+            if let serpEbayService = try? apiConfig.createSerpAPIEbayService() {
+                await registerService(serpEbayService, for: "serpapi_ebay_fallback")
             }
             
         } catch {
@@ -277,6 +354,14 @@ final class APICoordinator: ObservableObject {
         // Apply pagination
         let paginatedProducts = Array(sortedProducts.prefix(options.maxResults))
         
+        // Add all search results to persistent cache (before pagination)
+        if !deduplicatedProducts.isEmpty {
+            Task {
+                await persistentCache.addProducts(deduplicatedProducts)
+                print("📱 APICoordinator: Added \(deduplicatedProducts.count) products to persistent cache")
+            }
+        }
+        
         return AggregatedSearchResult(
             query: query,
             products: paginatedProducts,
@@ -302,7 +387,7 @@ final class APICoordinator: ObservableObject {
             
             // Find matching products (by name similarity)
             let similarProducts = crossRetailerSearch.products.filter { product in
-                ProductMatcher.calculateSimilarity(
+                calculateNameSimilarity(
                     details.baseProduct.name,
                     product.name
                 ) > 0.8
@@ -322,6 +407,18 @@ final class APICoordinator: ObservableObject {
         }
         
         return enriched
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func calculateNameSimilarity(_ name1: String, _ name2: String) -> Double {
+        let words1 = Set(name1.lowercased().components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty })
+        let words2 = Set(name2.lowercased().components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty })
+        
+        let intersection = words1.intersection(words2)
+        let union = words1.union(words2)
+        
+        return union.isEmpty ? 0 : Double(intersection.count) / Double(union.count)
     }
 }
 

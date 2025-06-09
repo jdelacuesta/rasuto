@@ -6,10 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		AD405F922DDE5D8900F2D411 /* .env in Resources */ = {isa = PBXBuildFile; fileRef = AD405F912DDE5D8900F2D411 /* .env */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		ADF563382DAD9270001CFC96 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -28,7 +24,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		AD405F912DDE5D8900F2D411 /* .env */ = {isa = PBXFileReference; lastKnownFileType = text; path = .env; sourceTree = "<group>"; };
 		ADF563262DAD926E001CFC96 /* Rasuto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rasuto.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADF563372DAD9270001CFC96 /* RasutoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RasutoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADF563412DAD9270001CFC96 /* RasutoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RasutoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,7 +88,6 @@
 		ADF5631D2DAD926E001CFC96 = {
 			isa = PBXGroup;
 			children = (
-				AD405F912DDE5D8900F2D411 /* .env */,
 				ADF563282DAD926E001CFC96 /* Rasuto */,
 				ADF5633A2DAD9270001CFC96 /* RasutoTests */,
 				ADF563442DAD9270001CFC96 /* RasutoUITests */,
@@ -234,7 +228,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AD405F922DDE5D8900F2D411 /* .env in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

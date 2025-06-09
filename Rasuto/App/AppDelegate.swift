@@ -10,7 +10,7 @@ import SwiftUI
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     // Reference to singletons using shared instances
-    let ebayNotificationManager = EbayNotificationManager.shared
+    // eBay integration provided via SerpAPI
     let networkMonitor = NetworkMonitor.shared
     let apiConfig = APIConfig()
     
@@ -24,11 +24,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Initial setup
         configureAppAppearance()
         
-        // Setup eBay webhook handling
-        setupEbayWebhookHandling()
+        // Setup eBay webhook handling (disabled)
+        // eBay webhooks not needed - using SerpAPI integration
         
-        // Initialize eBay notification system
-        setupEbayNotificationSystem()
+        // Initialize eBay notification system (disabled)
+        // eBay notifications handled via SerpAPI
         
         // Check if the app was launched with a URL
         if let url = launchOptions?[UIApplication.LaunchOptionsKey.url] as? URL {
@@ -50,80 +50,47 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure app appearance here
     }
     
-    // Configure API keys for Best Buy services
-    func setupAPIKeys() {
-        do {
-            // Store the RapidAPI key for Best Buy
-            try APIKeyManager.shared.saveAPIKey(
-                for: "bestbuy.rapidapi_key",
-                key: "71098ddf86msh32a198c44c7d555p12c439jsn99de5f11bc40"
-            )
-            
-            // Also store the host
-            try APIKeyManager.shared.saveAPIKey(
-                for: "bestbuy.rapidapi_host",
-                key: "rapidapi.com"
-            )
-            
-            print("✅ API keys successfully stored")
-        } catch {
-            print("❌ Failed to store API keys: \(error)")
-        }
-    }
     
-    // Configure API keys for eBay services
+    // Configure API keys for SerpAPI + fallback services
     private func configureAPIKeys() {
         // Initialize API keys from SecretKeys file to keychain securely
         apiConfig.initializeAPIKeys()
         
         #if DEBUG
-        // For development testing without real keys, you can use this
+        // For development testing, check if test keys should be used
         if ProcessInfo.processInfo.arguments.contains("USE_TEST_KEYS") {
             do {
-                let ebayClientID = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientID)
-                let ebayClientSecret = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebayClientSecret)
-                let ebayAPIKey = try APIKeyManager.shared.getAPIKey(for: APIConfig.Service.ebay)
-                
-                print("✅ eBay API credentials loaded:")
-                print("   - Client ID: \(ebayClientID.prefix(4))...")
-                print("   - Client Secret: \(ebayClientSecret.prefix(4))...")
-                print("   - API Key: \(ebayAPIKey.prefix(4))...")
+                try apiConfig.setupTestKeys()
+                print("✅ Using test API keys for development (SerpAPI + fallbacks)")
             } catch {
-                print("❌ Failed to load eBay API credentials: \(error)")
-                
-                if ProcessInfo.processInfo.arguments.contains("USE_TEST_KEYS") {
-                    do {
-                        try apiConfig.setupTestKeys() // This uses your existing test key method
-                        print("✅ Using test API keys for development")
-                    } catch {
-                        print("❌ Failed to set up test API keys: \(error)")
-                    }
-                }
+                print("❌ Failed to set up test API keys: \(error)")
             }
         }
-            #endif
-        }
+        #endif
+    }
     
-    // MARK: - eBay Notification System
+    // MARK: - eBay Notification System - Removed (using SerpAPI)
     
+    /*
     private func setupEbayNotificationSystem() {
         // Initialize the notification system
-        Task {
-            do {
-                try await ebayNotificationManager.initializeNotificationSystem()
-                print("eBay notification system initialized successfully")
-                
-                // Set up observers for network restoration
-                NotificationCenter.default.addObserver(
-                    self,
-                    selector: #selector(networkConnectionRestored),
-                    name: .networkConnectionRestored,
-                    object: nil
-                )
-            } catch {
-                print("Failed to initialize eBay notification system: \(error)")
-            }
-        }
+        // eBay notification system disabled
+        // Task {
+        //     do {
+        //         try await ebayNotificationManager.initializeNotificationSystem()
+        //         print("eBay notification system initialized successfully")
+        //         
+        //         // Set up observers for network restoration
+        //         NotificationCenter.default.addObserver(
+        //             self,
+        //             selector: #selector(networkConnectionRestored),
+        //             name: .networkConnectionRestored,
+        //             object: nil
+        //         )
+        //     } catch {
+        //         print("Failed to initialize eBay notification system: \(error)")
+        //     }
+        // }
     }
     
     @objc private func networkConnectionRestored() {
@@ -139,6 +106,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Add code to verify ngrok status and restart if needed
         print("Checking ngrok tunnel status")
     }
+    */
     
     // MARK: - eBay Webhook Handling
     
@@ -194,11 +162,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     /// Process eBay webhook data
     private func processEbayWebhook(data: Data, headers: [String: String]) async {
-        do {
-            // Process the webhook
-            try await ebayNotificationManager.processWebhook(data: data, headers: headers)
-        } catch {
-            print("Error processing eBay webhook: \(error)")
-        }
+        // eBay webhook processing disabled
+        // do {
+        //     // Process the webhook
+        //     try await ebayNotificationManager.processWebhook(data: data, headers: headers)
+        // } catch {
+        //     print("Error processing eBay webhook: \(error)")
+        // }
+        print("eBay webhook processing disabled - EbayNotificationManager unavailable")
     }
 }

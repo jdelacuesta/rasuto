@@ -13,6 +13,7 @@ struct RasutoOnboardingView: View {
     @State private var currentPage = 0
     @State private var showSignUp = false
     @Binding var isPresented: Bool
+    // @EnvironmentObject private var appState: AppState
     
     var body: some View {
         ZStack {
@@ -50,13 +51,8 @@ struct RasutoOnboardingView: View {
                     if currentPage < 2 {
                         // Next/Continue button
                         Button(action: {
-                            if currentPage == 0 {
-                                // Navigate to sign up on first screen
-                                showSignUp = true
-                            } else {
-                                withAnimation(.spring(response: 0.6)) {
-                                    currentPage += 1
-                                }
+                            withAnimation(.spring(response: 0.6)) {
+                                currentPage += 1
                             }
                         }) {
                             Text(currentPage == 0 ? "Show Me How" : "Tell Me More")
@@ -86,9 +82,11 @@ struct RasutoOnboardingView: View {
                         HStack(spacing: 12) {
                             // Demo button
                             Button(action: {
+                                print("🎬 Demo button pressed - dismissing onboarding")
                                 withAnimation(.easeOut(duration: 0.4)) {
                                     isPresented = false
                                 }
+                                print("🎬 isPresented set to false")
                             }) {
                                 Text("Demo the app")
                                     .font(.headline)
@@ -104,19 +102,25 @@ struct RasutoOnboardingView: View {
                             }
                             .buttonStyle(ScaleButtonStyle())
                             
-                            // Sign up button
+                            // Sign up button - disabled for pre-launch
                             Button(action: {
-                                showSignUp = true
+                                // Disabled for pre-launch
                             }) {
-                                Text("Create Account")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 52)
-                                    .background(Color.blue)
-                                    .cornerRadius(16)
+                                VStack(spacing: 4) {
+                                    Text("Create Account")
+                                        .font(.headline)
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Text("Coming Soon")
+                                        .font(.caption2)
+                                        .foregroundColor(.white.opacity(0.4))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(Color.gray.opacity(0.3))
+                                .cornerRadius(16)
                             }
                             .buttonStyle(ScaleButtonStyle())
+                            .disabled(true)
                         }
                     }
                 }
@@ -588,6 +592,10 @@ struct RasutoSignUpView: View {
                     // Sign up button
                     Button(action: {
                         // Handle signup logic here
+                        // TODO: Set authenticated mode when AppState is available
+                        // In a real app, this would authenticate the user
+                        // let mockUser = User(id: UUID().uuidString, email: email, name: nil)
+                        // appState.setAuthenticatedMode(user: mockUser)
                         onComplete()
                     }) {
                         Text("Create Account")

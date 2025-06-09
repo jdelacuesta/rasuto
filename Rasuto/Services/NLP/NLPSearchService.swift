@@ -33,12 +33,12 @@ class NLPSearchService {
     private func loadRetailerServices() async {
         do {
             let apiConfig = APIConfig()
-            let bestBuyService = try apiConfig.createBestBuyService()
-            let walmartService = try await apiConfig.createWalmartService()
-            let ebayService = try apiConfig.createEbayService()
+            let serpGoogleShopping = try apiConfig.createSerpAPIGoogleShoppingService()
+            let serpEbay = try apiConfig.createSerpAPIEbayService()
+            let axessoAmazon = try apiConfig.createAxessoAmazonService()
             
             await MainActor.run {
-                self.retailers = [bestBuyService, walmartService, ebayService]
+                self.retailers = [serpGoogleShopping, serpEbay, axessoAmazon]
             }
         } catch {
             print("Failed to initialize retailer services: \(error)")

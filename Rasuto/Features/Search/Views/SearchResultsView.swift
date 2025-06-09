@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SearchResultsView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = SearchViewModel()
+    @StateObject private var viewModel = SearchCardViewModel()
     @State private var searchText = ""
     @FocusState private var isSearchFieldFocused: Bool
     
@@ -43,9 +43,9 @@ struct SearchResultsView: View {
             // Filter tabs
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    FilterButton(title: "All", isSelected: true)
-                    FilterButton(title: "Saved", isSelected: false)
-                    FilterButton(title: "Collections", isSelected: false)
+                    SearchFilterButton(title: "All", isSelected: true)
+                    SearchFilterButton(title: "Saved", isSelected: false)
+                    SearchFilterButton(title: "Collections", isSelected: false)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -220,7 +220,7 @@ struct SearchResultsView: View {
 
 // MARK: - Helper Views
 
-struct FilterButton: View {
+struct SearchFilterButton: View {
     let title: String
     let isSelected: Bool
     
