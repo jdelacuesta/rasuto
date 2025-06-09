@@ -53,7 +53,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     // Configure API keys for SerpAPI + fallback services
     private func configureAPIKeys() {
-        // Initialize API keys from SecretKeys file to keychain securely
+        // Initialize API keys from DefaultKeys file to keychain securely
         apiConfig.initializeAPIKeys()
         
         #if DEBUG
