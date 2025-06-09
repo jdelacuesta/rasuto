@@ -295,7 +295,7 @@ final class APICoordinator: ObservableObject {
             
             // LAYER 2: Amazon Layer - Axesso for direct Amazon access
             // Enhanced Amazon data with price history capabilities
-            let axessoService = AxessoAmazonAPIService(apiKey: SecretKeys.axessoApiKeyPrimary)
+            let axessoService = AxessoAmazonAPIService(apiKey: DefaultKeys.axessoApiKeyPrimary)
             await registerService(axessoService, for: "axesso_amazon")
             
             // LAYER 3: Enhanced Amazon API - Axesso for detailed Amazon data

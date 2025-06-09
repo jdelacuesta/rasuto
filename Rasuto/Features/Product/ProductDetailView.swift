@@ -13,7 +13,7 @@ struct ProductDetailView: View {
     // @EnvironmentObject private var bestBuyTracker: BestBuyPriceTracker // DISABLED for faster startup
     // @EnvironmentObject private var ebayManager: EbayNotificationManager // Commented out - EbayNotificationManager disabled
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var axessoService = AxessoAmazonAPIService(apiKey: SecretKeys.axessoApiKeyPrimary)
+    @StateObject private var axessoService = AxessoAmazonAPIService(apiKey: DefaultKeys.axessoApiKeyPrimary)
     @StateObject private var trackingService = ProductTrackingService.shared
     
     @State private var selectedImageIndex = 0

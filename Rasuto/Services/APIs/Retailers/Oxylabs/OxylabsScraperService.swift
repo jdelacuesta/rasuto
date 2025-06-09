@@ -47,9 +47,9 @@ class OxylabsScraperService: ObservableObject, RetailerAPIService {
     // MARK: - API Credential Management
     
     private func loadAPICredentials() {
-        // Load from SecretKeys (which checks environment first, then defaults)
-        apiUsername = SecretKeys.oxylabsUsername
-        apiPassword = SecretKeys.oxylabsPassword
+        // Load from DefaultKeys (which checks environment first, then defaults)
+        apiUsername = DefaultKeys.oxylabsUsername
+        apiPassword = DefaultKeys.oxylabsPassword
         
         print("🔧 Oxylabs credentials loaded: \(apiUsername.isEmpty ? "MISSING" : "OK") username, \(apiPassword.isEmpty ? "MISSING" : "OK") password")
     }

@@ -56,7 +56,7 @@ struct APIConfig {
                 print("📝 Initializing API keys for SerpAPI + fallbacks...")
                 
                 // SerpAPI Key - Primary API layer
-                let serpApiKey = SecretKeys.serpApiKey.isEmpty ? DefaultKeys.serpApiKey : SecretKeys.serpApiKey
+                let serpApiKey = DefaultKeys.serpApiKey
                 try APIKeyManager.shared.saveAPIKey(for: Service.serpAPI, key: serpApiKey)
                 
                 // Axesso Amazon API Key
@@ -64,7 +64,7 @@ struct APIConfig {
                 try APIKeyManager.shared.saveAPIKey(for: Service.axessoAmazon, key: axessoApiKey)
                 
                 // Oxylabs API Credentials
-                let oxylabsCredentials = "\(SecretKeys.oxylabsUsername):\(SecretKeys.oxylabsPassword)"
+                let oxylabsCredentials = "\(DefaultKeys.oxylabsUsername):\(DefaultKeys.oxylabsPassword)"
                 try APIKeyManager.shared.saveAPIKey(for: Service.oxylabs, key: oxylabsCredentials)
                 
                 print("✅ API keys initialized for SerpAPI + fallbacks architecture")
