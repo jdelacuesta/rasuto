@@ -1,0 +1,227 @@
+//
+//  SettingsView.swift
+//  Rasuto
+//
+//  Created by JC Dela Cuesta on 4/14/25.
+//
+
+import SwiftUI
+
+struct SettingsView: View {
+    @AppStorage("isDarkMode") private var isDarkMode = false
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                // MARK: - Account Section
+                Section("Account") {
+                    NavigationLink {
+                        Text("Profile View")
+                    } label: {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    
+                    NavigationLink {
+                        Text("Preferences View")
+                    } label: {
+                        Label("Preferences", systemImage: "gearshape.fill")
+                    }
+                }
+                
+                // MARK: - Notifications Section
+                Section("Notifications") {
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label("Alert Settings", systemImage: "bell.fill")
+                    }
+                    
+                    NavigationLink {
+                        FrequencySettingsView()
+                    } label: {
+                        Label("Frequency", systemImage: "clock.fill")
+                    }
+                }
+                
+                // MARK: - Retailers Section
+                Section("Retailers") {
+                    NavigationLink {
+                        RetailerRequestView()
+                    } label: {
+                        Label("Request New Retailer", systemImage: "plus.app.fill")
+                    }
+                    
+                    NavigationLink {
+                        APIStatusView()
+                    } label: {
+                        Label("API Status", systemImage: "network")
+                    }
+                    
+                    NavigationLink {
+                        QuotaProtectionSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Quota Protection", systemImage: "shield.checkered")
+                            Spacer()
+                            QuotaStatusMiniBanner()
+                        }
+                    }
+                }
+                
+                // MARK: - Support Section
+                Section("Support") {
+                    NavigationLink {
+                        Text("Contact View")
+                    } label: {
+                        Label("Contact", systemImage: "envelope.fill")
+                    }
+                    
+                    NavigationLink {
+                        Text("Rate Us View")
+                    } label: {
+                        Label("Rate Us", systemImage: "star.fill")
+                    }
+                    
+                    // Debug panel removed for production
+                    
+                    // Version information
+                    HStack {
+                        Label("Version", systemImage: "info.circle.fill")
+                        Spacer()
+                        Text("1.0")
+                            .foregroundColor(.gray)
+                    }
+                    
+                    // Legal items moved here
+                    NavigationLink {
+                        Text("Privacy Policy View")
+                    } label: {
+                        Label("Privacy Policy", systemImage: "lock.shield.fill")
+                    }
+                    
+                    NavigationLink {
+                        Text("Terms of Service View")
+                    } label: {
+                        Label("Terms of Service", systemImage: "doc.text.fill")
+                    }
+                }
+                
+                // MARK: - Dark Mode Toggle
+                Section("Enable Dark Mode") {
+                    Toggle(isOn: $isDarkMode) {
+                        HStack {
+                            Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
+                                .foregroundColor(isDarkMode ? .purple : .orange)
+                            Text("Dark Mode")
+                        }
+                    }
+                    .onChange(of: isDarkMode) { newValue in
+                        setAppearance(isDark: newValue)
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .listStyle(InsetGroupedListStyle())
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Add bottom padding for better scrolling
+                Color.clear.frame(height: 100)
+            }
+            .onAppear {
+                // Always enforce the current setting when Settings view appears
+                print("⚙️ Settings appeared - isDarkMode: \(isDarkMode)")
+                setAppearance(isDark: isDarkMode)
+            }
+        }
+    }
+    
+    // Function to set the app's appearance mode
+    private func setAppearance(isDark: Bool) {
+        // Using async/await pattern for UI updates
+        Task { @MainActor in
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.windows.forEach { window in
+                    window.overrideUserInterfaceStyle = isDark ? .dark : .light
+                }
+            }
+        }
+    }
+}
+
+// Create an extension to handle color scheme changes app-wide
+extension View {
+    // Apply the stored theme preference
+    func applyStoredTheme() -> some View {
+        self.onAppear {
+            let isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+            let scenes = UIApplication.shared.connectedScenes
+            let windowScene = scenes.first as? UIWindowScene
+            
+            Task { @MainActor in
+                windowScene?.windows.forEach { window in
+                    window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
+                }
+            }
+        }
+    }
+}
+
+// AppDelegate code to set theme on launch (add this to your App file)
+func configureAppTheme() {
+    let isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+    let scenes = UIApplication.shared.connectedScenes
+    let windowScene = scenes.first as? UIWindowScene
+    
+    Task { @MainActor in
+        windowScene?.windows.forEach { window in
+            window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
+        }
+    }
+}
+
+// MARK: - API Status View
+
+struct APIStatusView: View {
+    private let apiConfig = APIConfig()
+    
+    var body: some View {
+        List {
+            Section("SerpAPI + Fallback Architecture") {
+                HStack {
+                    Text("SerpAPI")
+                    Spacer()
+                    Text("Primary")
+                        .foregroundColor(.green)
+                }
+                HStack {
+                    Text("Axesso Amazon")
+                    Spacer()
+                    Text("Fallback")
+                        .foregroundColor(.orange)
+                }
+                HStack {
+                    Text("Oxylabs")
+                    Spacer()
+                    Text("Universal")
+                        .foregroundColor(.blue)
+                }
+            }
+            
+            Section("Status") {
+                Text("All services are integrated via APIConfig")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .navigationTitle("API Status")
+    }
+}
+
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+        }
+    }
+}
